@@ -1,51 +1,44 @@
 /**
- * config.js
- * =========
- * Central configuration for the Family Tree app.
- * ⚠️  EDIT THESE VALUES before deploying.
+ * config.js — الإعدادات الرئيسية
+ * ================================
+ * ⚠️ عدّل هذه القيم قبل الرفع على GitHub
  */
 
 const CONFIG = {
-  /**
-   * Your Google Sheet ID.
-   * Found in the sheet URL:
-   *   https://docs.google.com/spreadsheets/d/  <SHEET_ID>  /edit
-   */
+
+  // معرّف Google Sheet
+  // تجده في رابط الشيت: https://docs.google.com/spreadsheets/d/ <<هنا>> /edit
   SHEET_ID: '1Tiwmo70s2mtXRykEKnqRv_bHTIpp-sTQ-KwtS2xghLM',
 
-  /**
-   * Your Google Apps Script Web App URL.
-   * Deploy the provided Code.gs as a Web App and paste the URL here.
-   */
+  // رابط Google Apps Script بعد النشر
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxUVFeCVlF9UO-NMWCsuzyrkkelMdCwVvFJWrQuAPI4dpCikibVlupfdxvMuYch_SM/exec',
 
-  /**
-   * Admin password (stored only client-side for simplicity).
-   * For production, handle authentication in Apps Script.
-   */
+  // كلمة مرور لوحة الإدارة
   ADMIN_PASSWORD: 'admin123',
 
   /**
-   * Sheet tab names (must match exactly).
+   * ⚠️ مهم جداً للـ PWA على GitHub Pages
+   * إذا كان اسم الـ repository مثلاً: family-tree
+   * فاكتب: '/family-tree/'
+   * إذا كان الموقع على domain خاص أو root، اكتب: '/'
    */
+  BASE_URL: '/YOUR_REPO_NAME/',
+
+  // أسماء أوراق الشيت (لا تغيّرها)
   SHEETS: {
     MEMBERS:          'members',
     PENDING_REQUESTS: 'pending_requests',
     PENDING_UPDATES:  'pending_updates',
   },
 
-  /**
-   * Visual layout settings.
-   */
+  // إعدادات مظهر الشجرة
   LAYOUT: {
-    NODE_WIDTH:    140,
-    NODE_HEIGHT:   52,
-    H_SPACING:     60,   // horizontal gap between siblings
-    V_SPACING:     110,  // vertical gap between generations
+    NODE_WIDTH:  140,
+    NODE_HEIGHT: 52,
+    H_SPACING:   60,
+    V_SPACING:   110,
   },
 
-  /**
-   * Long-press duration in milliseconds.
-   */
+  // مدة الضغط المطوّل (بالميلي ثانية)
   LONG_PRESS_DURATION: 700,
 };
