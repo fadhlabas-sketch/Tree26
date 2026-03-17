@@ -1,18 +1,17 @@
 /**
  * app.js
  * ======
- * Application entry point.
- * Orchestrates: data load → tree render → init interactions.
+ * نقطة الدخول الرئيسية للتطبيق
  */
 
 const App = (() => {
 
+  // ── تحميل البيانات وعرض الشجرة ────────────────────────────────────────────
   async function load() {
     try {
       const members = await Sheets.getMembers();
 
       if (members.length === 0) {
-        // Show demo data if sheet is empty (for first-time setup)
         _loadDemoData();
         return;
       }
@@ -20,81 +19,98 @@ const App = (() => {
       Tree.render(members);
       Interactions.attachAll();
       _hideLoader();
+
     } catch (e) {
-      console.error('Error loading tree:', e);
-      // Fall back to demo data so the UI is still usable
-      _loadDemoData();
+      console.error('خطأ في التحميل:', e);
+      // إظهار رسالة الخطأ ثم تحميل البيانات التجريبية
+      _showError(e.message);
+      setTimeout(() => {
+        _loadDemoData();
+        Interactions.showToast('⚠️ يعمل في الوضع التجريبي — تحقق من config.js', 5000);
+      }, 2200);
     }
   }
 
-  // ── Reload after admin approval ───────────────────────────────────────────
+  function _showError(msg) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+      overlay.querySelector('.tree-loader').textContent = '⚠️';
+      overlay.querySelector('p').textContent = 'خطأ: ' + msg;
+    }
+  }
+
+  // ── إعادة تحميل الشجرة (بعد الموافقة على طلب) ────────────────────────────
   async function reload() {
     try {
       const members = await Sheets.getMembers();
-      Tree.render(members);
-      Interactions.attachAll();
+      if (members.length > 0) {
+        Tree.render(members);
+        Interactions.attachAll();
+      }
     } catch (e) {
-      console.error('Reload error:', e);
+      console.error('خطأ في إعادة التحميل:', e);
     }
   }
 
-  // ── Demo data (shown when Sheet is not configured yet) ────────────────────
+  // ── بيانات تجريبية للعرض ─────────────────────────────────────────────────
   function _loadDemoData() {
     const demo = [];
-    // Root
-    demo.push({ id:'1', name:'Ahmad Al-Hassan', parent_id:'', birth_date:'1940-03-15', job:'Farmer', address:'Baghdad, Iraq' });
-    // Gen 2
-    const gen2 = [
-      { id:'2', name:'Mohammed Hassan', parent_id:'1', birth_date:'1965-07-10', job:'Engineer' },
-      { id:'3', name:'Fatima Hassan',   parent_id:'1', birth_date:'1967-02-20', job:'Teacher' },
-      { id:'4', name:'Omar Hassan',     parent_id:'1', birth_date:'1970-11-05', job:'Doctor' },
-    ];
-    demo.push(...gen2);
 
-    // Gen 3 under Mohammed
+    // الجذر
+    demo.push({
+      id: '1', name: 'أحمد بن محمد', parent_id: '',
+      birth_date: '1940-03-15', job: 'مزارع', address: 'بغداد، العراق', phone: '', note: ''
+    });
+
+    // الجيل الثاني
     [
-      { id:'5',  name:'Sara Mohammed',  parent_id:'2' },
-      { id:'6',  name:'Khalid Mohammed',parent_id:'2' },
-      { id:'7',  name:'Layla Mohammed', parent_id:'2' },
+      { id: '2', name: 'محمد أحمد',   parent_id: '1', job: 'مهندس' },
+      { id: '3', name: 'فاطمة أحمد',  parent_id: '1', job: 'معلمة' },
+      { id: '4', name: 'عمر أحمد',    parent_id: '1', job: 'طبيب'  },
+      { id: '5', name: 'علي أحمد',    parent_id: '1', job: 'محامي' },
+    ].forEach(m => demo.push({ birth_date:'', address:'', phone:'', note:'', ...m }));
+
+    // الجيل الثالث
+    [
+      { id: '6',  name: 'سارة محمد',   parent_id: '2' },
+      { id: '7',  name: 'خالد محمد',   parent_id: '2' },
+      { id: '8',  name: 'ليلى محمد',   parent_id: '2' },
+      { id: '9',  name: 'نور فاطمة',   parent_id: '3' },
+      { id: '10', name: 'يوسف فاطمة',  parent_id: '3' },
+      { id: '11', name: 'زينب عمر',    parent_id: '4' },
+      { id: '12', name: 'حسن عمر',     parent_id: '4' },
+      { id: '13', name: 'مريم علي',    parent_id: '5' },
+      { id: '14', name: 'عبدالله علي', parent_id: '5' },
     ].forEach(m => demo.push({ birth_date:'', job:'', address:'', phone:'', note:'', ...m }));
 
-    // Gen 3 under Fatima
-    [
-      { id:'8',  name:'Nour Fatima',   parent_id:'3' },
-      { id:'9',  name:'Yousef Fatima', parent_id:'3' },
-    ].forEach(m => demo.push({ birth_date:'', job:'', address:'', phone:'', note:'', ...m }));
-
-    // Gen 3 under Omar
-    [
-      { id:'10', name:'Zainab Omar',   parent_id:'4' },
-      { id:'11', name:'Hassan Omar',   parent_id:'4' },
-      { id:'12', name:'Mariam Omar',   parent_id:'4' },
-    ].forEach(m => demo.push({ birth_date:'', job:'', address:'', phone:'', note:'', ...m }));
-
-    // Gen 4
-    const gen4Parents = ['5','6','7','8','9','10','11','12'];
-    let idCounter = 13;
-    gen4Parents.forEach(pid => {
-      const count = 2 + Math.floor(Math.random() * 2);
+    // الجيل الرابع
+    let counter = 15;
+    ['6','7','8','9','10','11','12','13','14'].forEach(pid => {
+      const count = 2 + Math.floor(Math.random() * 3);
       for (let i = 0; i < count; i++) {
-        demo.push({ id: String(idCounter++), name: `Member ${idCounter}`, parent_id: pid,
-          birth_date:'', job:'', address:'', phone:'', note:'' });
+        const names = ['أحمد','محمد','علي','حسين','زينب','فاطمة','مريم','عمر'];
+        demo.push({
+          id: String(counter++),
+          name: names[Math.floor(Math.random()*names.length)] + ' ' + (demo.find(m=>m.id===pid)?.name.split(' ')[0] || ''),
+          parent_id: pid,
+          birth_date:'', job:'', address:'', phone:'', note:''
+        });
       }
     });
 
     Tree.render(demo);
     Interactions.attachAll();
     _hideLoader();
-    Interactions.showToast('📋 Demo mode — configure Google Sheets to load real data', 5000);
   }
 
   function _hideLoader() {
     const overlay = document.getElementById('loadingOverlay');
+    if (!overlay) return;
     overlay.classList.add('hidden');
     setTimeout(() => overlay.remove(), 600);
   }
 
-  // ── Bootstrap ─────────────────────────────────────────────────────────────
+  // ── التشغيل ───────────────────────────────────────────────────────────────
   function init() {
     Interactions.init();
     Search.init();
@@ -103,15 +119,17 @@ const App = (() => {
     load();
   }
 
-  // Register service worker for PWA
+  // تسجيل الـ Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('service-worker.js').catch(console.warn);
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(reg => console.log('Service Worker مسجّل:', reg.scope))
+        .catch(err => console.warn('Service Worker فشل:', err));
     });
   }
 
   return { init, reload };
 })();
 
-// Start the app
+// تشغيل التطبيق
 document.addEventListener('DOMContentLoaded', App.init);
