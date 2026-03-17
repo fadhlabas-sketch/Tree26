@@ -1,177 +1,100 @@
-# 🌳 Family Tree — Deployment Guide
+# 🌳 شجرة العائلة
 
-A full-featured family tree web app with 600+ member support, Google Sheets as database, PWA support, and admin approval system.
+## 📁 ترتيب الملفات على GitHub
 
----
-
-## 📋 Google Sheets Structure
-
-Create a new Google Sheet with **3 tabs** (exact names required):
-
-### Tab 1: `members`
-
-| Column | Description |
-|--------|-------------|
-| `id` | Unique ID (e.g. `M001`) |
-| `name` | Full name |
-| `parent_id` | Parent's `id` (blank for root) |
-| `birth_date` | Optional (e.g. `1980-05-12`) |
-| `phone` | Optional |
-| `address` | Optional |
-| `job` | Optional |
-| `note` | Optional |
-
-**Example rows:**
 ```
-id,       name,             parent_id, birth_date,  phone, address,       job,      note
-M001,     Ahmad Al-Hassan,  ,          1940-03-15,  ,      Baghdad Iraq,  Farmer,   Patriarch
-M002,     Mohammed Hassan,  M001,      1965-07-10,  ,      ,              Engineer,
-M003,     Fatima Hassan,    M001,      1967-02-20,  ,      ,              Teacher,
+your-repo/
+│
+├── index.html               ← الصفحة الرئيسية
+├── manifest.json            ← إعدادات PWA
+├── service-worker.js        ← العمل بدون إنترنت
+│
+├── css/
+│   └── style.css
+│
+├── js/
+│   ├── config.js            ← ⚙️ عدّل هذا أولاً
+│   ├── sheets.js
+│   ├── tree.js
+│   ├── interactions.js
+│   ├── search.js
+│   ├── admin.js
+│   └── app.js
+│
+└── icons/
+    ├── icon-192.png
+    └── icon-512.png
 ```
 
 ---
 
-### Tab 2: `pending_requests`
+## ⚙️ الخطوة الأولى — تعديل config.js
 
-| Column | Description |
-|--------|-------------|
-| `request_id` | Auto-generated |
-| `type` | Always `add_child` |
-| `parent_id` | Parent member id |
-| `child_name` | Submitted child name |
-| `birth_date` | Optional |
-| `submitted_by` | Optional name |
-| `status` | `pending` / `approved` / `rejected` |
-| `timestamp` | Auto-generated |
-
-Create this tab with just the header row — it will be auto-populated.
-
----
-
-### Tab 3: `pending_updates`
-
-| Column | Description |
-|--------|-------------|
-| `request_id` | Auto-generated |
-| `member_id` | Target member id |
-| `member_name` | For display |
-| `birth_date` | New value (optional) |
-| `phone` | New value (optional) |
-| `address` | New value (optional) |
-| `job` | New value (optional) |
-| `note` | New value (optional) |
-| `submitted_by` | Optional |
-| `status` | `pending` / `approved` / `rejected` |
-| `timestamp` | Auto-generated |
-
-Create this tab with just the header row — it will be auto-populated.
-
----
-
-## ⚙️ Google Apps Script Setup
-
-1. In your Google Sheet, go to **Extensions → Apps Script**
-2. Delete all existing code and paste the contents of `Code.gs`
-3. Replace `YOUR_GOOGLE_SHEET_ID_HERE` in `Code.gs` with your actual Sheet ID  
-   *(from the URL: `https://docs.google.com/spreadsheets/d/**SHEET_ID**/edit`)*
-4. Click **Deploy → New Deployment**
-5. Settings:
-   - Type: **Web App**
-   - Execute as: **Me**
-   - Who has access: **Anyone**
-6. Click **Deploy** and copy the **Web App URL**
-
----
-
-## 🔧 Configure the Frontend
-
-Open `js/config.js` and fill in:
+افتح `js/config.js` وعدّل هذه القيم:
 
 ```javascript
-const CONFIG = {
-  SHEET_ID: 'your-actual-sheet-id',
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/YOUR_ID/exec',
-  ADMIN_PASSWORD: 'yourSecurePassword',
-  ...
-};
+SHEET_ID:        'ضع هنا ID الشيت',
+APPS_SCRIPT_URL: 'ضع هنا رابط Apps Script',
+ADMIN_PASSWORD:  'كلمة_السر',
+
+// ⚠️ مهم جداً — اسم الـ repository على GitHub
+// مثال: إذا كان الـ repo اسمه "family-tree" اكتب:
+BASE_URL: '/family-tree/',
+
+// إذا كان موقعك على domain خاص (مثل username.github.io فقط) اكتب:
+BASE_URL: '/',
 ```
 
 ---
 
-## 🚀 Deploy to GitHub Pages
+## 🚀 خطوات النشر على GitHub Pages
 
-1. Create a new GitHub repository (public)
-2. Upload all project files:
-   ```
-   index.html
-   manifest.json
-   service-worker.js
-   css/style.css
-   js/config.js
-   js/sheets.js
-   js/tree.js
-   js/interactions.js
-   js/search.js
-   js/admin.js
-   js/app.js
-   icons/icon-192.png   ← add your own icons
-   icons/icon-512.png   ← add your own icons
-   ```
-3. Go to **Settings → Pages**
-4. Source: **Deploy from a branch**
-5. Branch: **main**, folder: **/ (root)**
-6. Click **Save**
-7. Your site will be live at: `https://yourusername.github.io/repo-name/`
+### 1. رفع الملفات
+- أنشئ Repository جديد على github.com
+- ارفع **كل الملفات والمجلدات** (مع المجلدات `js/` و`css/` و`icons/`)
+
+### 2. تفعيل GitHub Pages
+- اذهب إلى **Settings → Pages**
+- اختر **Branch: main** ثم **/ (root)**
+- اضغط **Save**
+
+### 3. انتظر دقيقة ثم افتح الرابط
+`https://اسم_المستخدم.github.io/اسم_الريبو/`
 
 ---
 
-## 📱 PWA Icons
+## 📱 تثبيت التطبيق على الهاتف
 
-Create two PNG icon files and place them in the `icons/` folder:
-- `icons/icon-192.png` — 192×192 pixels
-- `icons/icon-512.png` — 512×512 pixels
-
-You can use any free icon generator (e.g. [favicon.io](https://favicon.io)) with a tree emoji 🌳.
+بعد فتح الموقع:
+- **أندرويد**: اضغط على القائمة ← "إضافة إلى الشاشة الرئيسية"
+- **آيفون**: اضغط على زر المشاركة ← "إضافة إلى الشاشة الرئيسية"
 
 ---
 
-## 🌳 How to Use
+## 🌳 هيكل Google Sheets
 
-### Adding the First Root Member
-Manually add them in the `members` sheet with a blank `parent_id`.
+### ورقة `members`
+| id | name | parent_id | birth_date | phone | address | job | note |
+|----|------|-----------|------------|-------|---------|-----|------|
+| M001 | أحمد محمد | | 1940-01-01 | | بغداد | مزارع | |
+| M002 | علي أحمد | M001 | 1965-05-10 | | | مهندس | |
 
-### Single Click (or Tap)
-Opens a side panel showing the person's details.
+### ورقة `pending_requests`
+اتركها فارغة مع الترويسات:
+`request_id | type | parent_id | child_name | birth_date | submitted_by | status | timestamp`
 
-### Long Press (hold ~0.7s)
-Shows a context menu:
-- **👶 Add Child** — Submit a child (pending admin approval)
-- **✏️ Add / Update Details** — Submit updated info (pending admin approval)
-
-### Search
-Type any part of a name (1, 2, or 3 words) in the search bar.  
-Multiple matches show a selectable dropdown.
-
-### Admin Panel
-Click the ⚙ icon → enter password → Approve or Reject pending requests.  
-Approved requests automatically update the tree.
+### ورقة `pending_updates`
+اتركها فارغة مع الترويسات:
+`request_id | member_id | member_name | birth_date | phone | address | job | note | submitted_by | status | timestamp`
 
 ---
 
-## 🔒 Security Notes
+## ❗ حل مشكلة 404 على الهاتف
 
-- The admin password in `config.js` is visible in the browser.  
-  For production, implement server-side auth in Apps Script.
-- The Apps Script Web App is public (read/write) — consider adding a secret token parameter for write operations.
+المشكلة كانت في `manifest.json` — الآن تم تصحيحها باستخدام مسارات نسبية:
+```json
+"start_url": "./index.html",
+"scope": "./"
+```
 
----
-
-## 📊 Performance Tips for 600+ Members
-
-- The tree uses a single-pass Reingold–Tilford layout (O(n) time)
-- Nodes are plain `div` elements with absolute positioning
-- SVG links are batch-rendered as a single `innerHTML` string
-- Pan/zoom uses CSS `transform` — GPU accelerated
-- Search results are limited to 20 matches with debouncing
-
-For trees over 2000 members, consider virtualizing nodes (only render visible area).
+وفي `service-worker.js` أيضاً تم استخدام `./` بدلاً من `/`.
