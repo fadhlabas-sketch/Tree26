@@ -12,7 +12,7 @@ const App = (() => {
       const members = await Sheets.getMembers();
 
       if (members.length === 0) {
-        // Show demo data if sheet is empty (for first-time setup)
+        // Sheet is configured but empty — show demo data
         _loadDemoData();
         return;
       }
@@ -22,8 +22,17 @@ const App = (() => {
       _hideLoader();
     } catch (e) {
       console.error('Error loading tree:', e);
-      // Fall back to demo data so the UI is still usable
-      _loadDemoData();
+      // Show the actual error so user knows what's wrong
+      const overlay = document.getElementById('loadingOverlay');
+      if (overlay) {
+        overlay.querySelector('p').textContent = '❌ ' + e.message;
+        overlay.querySelector('.tree-loader').textContent = '⚠️';
+      }
+      // Still load demo after 2s so UI is browsable
+      setTimeout(() => {
+        _loadDemoData();
+        Interactions.showToast('⚠️ خطأ في الاتصال — تم تحميل البيانات التجريبية', 5000);
+      }, 2000);
     }
   }
 
