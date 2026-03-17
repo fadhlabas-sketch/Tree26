@@ -17,7 +17,7 @@ const CONFIG = {
    * Your Google Apps Script Web App URL.
    * Deploy the provided Code.gs as a Web App and paste the URL here.
    */
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxLnajWmvokIIYTiyXIj9lF_akeYNQS_qhbzQ6hhdJCD0cco7K2EgbrOD0SYPRJAew/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxUVFeCVlF9UO-NMWCsuzyrkkelMdCwVvFJWrQuAPI4dpCikibVlupfdxvMuYch_SM/exec',
 
   /**
    * Admin password (stored only client-side for simplicity).
