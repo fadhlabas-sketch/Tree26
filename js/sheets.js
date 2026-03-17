@@ -1,43 +1,54 @@
 /**
  * sheets.js
  * =========
- * كل التواصل مع Google Sheets عبر Apps Script
+ * التواصل مع Google Sheets عبر Apps Script
  */
 
 const Sheets = (() => {
 
+  // ── الاستدعاء الداخلي ────────────────────────────────────────────────────
   async function _call(params) {
     const url = CONFIG.APPS_SCRIPT_URL;
-    // فقط ارفض الـ placeholder الافتراضي
+
+    // تحقق أن الرابط تم تعيينه
     if (!url || url === 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
-      throw new Error('يجب تعيين APPS_SCRIPT_URL في config.js');
+      throw new Error('لم يتم تعيين رابط Apps Script في config.js');
     }
+
     const qs  = new URLSearchParams(params).toString();
     const res = await fetch(`${url}?${qs}`, { redirect: 'follow' });
+
+    if (!res.ok) {
+      throw new Error(`خطأ في الاتصال: ${res.status}`);
+    }
+
     const json = await res.json();
     if (json.error) throw new Error(json.error);
     return json;
   }
 
+  // ── جلب كل الأعضاء ───────────────────────────────────────────────────────
   async function getMembers() {
     const data = await _call({ action: 'getMembers' });
     return data.members || [];
   }
 
+  // ── إرسال طلب إضافة ابن ─────────────────────────────────────────────────
   async function submitAddChild({ parentId, childName, birthDate, submittedBy }) {
     return _call({
-      action: 'addPendingRequest',
-      type: 'add_child',
+      action:      'addPendingRequest',
+      type:        'add_child',
       parentId,
       childName,
       birthDate:   birthDate   || '',
-      submittedBy: submittedBy || 'anonymous',
+      submittedBy: submittedBy || 'مجهول',
     });
   }
 
+  // ── إرسال طلب تحديث البيانات ─────────────────────────────────────────────
   async function submitUpdateDetails({ memberId, memberName, birthDate, phone, address, job, note, submittedBy }) {
     return _call({
-      action: 'addPendingUpdate',
+      action:      'addPendingUpdate',
       memberId,
       memberName,
       birthDate:   birthDate   || '',
@@ -45,15 +56,17 @@ const Sheets = (() => {
       address:     address     || '',
       job:         job         || '',
       note:        note        || '',
-      submittedBy: submittedBy || 'anonymous',
+      submittedBy: submittedBy || 'مجهول',
     });
   }
 
+  // ── جلب طلبات الأبناء ────────────────────────────────────────────────────
   async function getPendingRequests() {
     const data = await _call({ action: 'getPendingRequests' });
     return data.requests || [];
   }
 
+  // ── جلب طلبات التحديث ────────────────────────────────────────────────────
   async function getPendingUpdates() {
     const data = await _call({ action: 'getPendingUpdates' });
     return data.updates || [];
