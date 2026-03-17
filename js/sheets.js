@@ -10,7 +10,7 @@ const Sheets = (() => {
   // ── Internal helper ──────────────────────────────────────────────────────
   async function _call(params) {
     const url = CONFIG.APPS_SCRIPT_URL;
-    if (!url || url === 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
+    if (!url || url === 'https://script.google.com/macros/s/AKfycbxLnajWmvokIIYTiyXIj9lF_akeYNQS_qhbzQ6hhdJCD0cco7K2EgbrOD0SYPRJAew/exec') {
       throw new Error('Apps Script URL not configured. See js/config.js');
     }
     const qs = new URLSearchParams(params).toString();
