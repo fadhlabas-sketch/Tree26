@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Family Tree</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Mulish:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="logo-icon">🌳</span>
+      <h1 class="app-title">Family Tree</h1>
+    </div>
+    <div class="header-right">
+      <div class="search-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by name…" autocomplete="off" />
+        <button class="search-btn" id="searchBtn" aria-label="Search">🔍</button>
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      <button class="admin-btn" id="openAdmin" title="Admin Panel">⚙</button>
+    </div>
+  </header>
+
+  <!-- ===== TREE CANVAS AREA ===== -->
+  <div class="tree-container" id="treeContainer">
+    <svg id="linksSvg" class="links-svg"></svg>
+    <div id="nodesContainer" class="nodes-container"></div>
+  </div>
+
+  <!-- ===== LOADING OVERLAY ===== -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader-inner">
+      <div class="tree-loader">🌳</div>
+      <p>Loading family tree…</p>
+    </div>
+  </div>
+
+  <!-- ===== DETAILS PANEL ===== -->
+  <div class="side-panel" id="detailsPanel">
+    <button class="panel-close" id="closeDetails">✕</button>
+    <div class="panel-content" id="detailsContent"></div>
+  </div>
+  <div class="overlay" id="panelOverlay"></div>
+
+  <!-- ===== CONTEXT MENU ===== -->
+  <div class="context-menu" id="contextMenu">
+    <div class="ctx-item" id="ctxAddChild">
+      <span class="ctx-icon">👶</span> Add Child
+    </div>
+    <div class="ctx-item" id="ctxAddDetails">
+      <span class="ctx-icon">✏️</span> Add / Update Details
+    </div>
+  </div>
+
+  <!-- ===== MODAL (forms) ===== -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="modal">
+      <button class="modal-close" id="closeModal">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== ADMIN PANEL ===== -->
+  <div class="admin-backdrop" id="adminBackdrop">
+    <div class="admin-panel">
+      <div class="admin-header">
+        <h2>Admin Panel</h2>
+        <button class="panel-close" id="closeAdmin">✕</button>
+      </div>
+      <div class="admin-login" id="adminLogin">
+        <input type="password" id="adminPassword" placeholder="Enter admin password" class="form-input" />
+        <button class="btn-primary" id="adminLoginBtn">Login</button>
+        <p class="admin-hint">Default password: <strong>admin123</strong></p>
+      </div>
+      <div class="admin-content" id="adminContent" style="display:none">
+        <div class="admin-tabs">
+          <button class="tab-btn active" data-tab="children">Add Child Requests</button>
+          <button class="tab-btn" data-tab="updates">Update Requests</button>
+        </div>
+        <div id="adminTabChildren" class="admin-tab-body"></div>
+        <div id="adminTabUpdates" class="admin-tab-body" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/sheets.js"></script>
+  <script src="js/tree.js"></script>
+  <script src="js/interactions.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
