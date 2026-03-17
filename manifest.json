@@ -1,21 +1,24 @@
 {
-  "name": "Family Tree",
-  "short_name": "FamilyTree",
-  "description": "Interactive family tree with 600+ members",
-  "start_url": "/",
+  "name": "شجرة العائلة",
+  "short_name": "شجرة العائلة",
+  "description": "شجرة عائلية تفاعلية تدعم أكثر من 600 عضو",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#1a1a2e",
   "orientation": "any",
+  "lang": "ar",
+  "dir": "rtl",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "./icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "./icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
