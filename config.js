@@ -11,13 +11,13 @@ const CONFIG = {
    * Found in the sheet URL:
    *   https://docs.google.com/spreadsheets/d/  <SHEET_ID>  /edit
    */
-  SHEET_ID: 'YOUR_GOOGLE_SHEET_ID_HERE',
+  SHEET_ID: '1Tiwmo70s2mtXRykEKnqRv_bHTIpp-sTQ-KwtS2xghLM',
 
   /**
    * Your Google Apps Script Web App URL.
    * Deploy the provided Code.gs as a Web App and paste the URL here.
    */
-  APPS_SCRIPT_URL: 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxLnajWmvokIIYTiyXIj9lF_akeYNQS_qhbzQ6hhdJCD0cco7K2EgbrOD0SYPRJAew/exec',
 
   /**
    * Admin password (stored only client-side for simplicity).
