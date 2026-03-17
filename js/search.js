@@ -1,70 +1,67 @@
 /**
  * search.js
  * =========
- * Supports 1-, 2-, and 3-part name searches.
- * Matches partial or full names, case-insensitive.
- * Focuses and highlights the matching node.
+ * بحث بجزء من الاسم أو الاسم كاملاً (1 أو 2 أو 3 أجزاء)
  */
 
 const Search = (() => {
 
-  const input   = () => document.getElementById('searchInput');
-  const btn     = () => document.getElementById('searchBtn');
-  const results = () => document.getElementById('searchResults');
+  const getInput   = () => document.getElementById('searchInput');
+  const getBtn     = () => document.getElementById('searchBtn');
+  const getResults = () => document.getElementById('searchResults');
 
-  // ── Normalise a string for comparison ────────────────────────────────────
+  // تطبيع النص للمقارنة
   function _norm(s) {
     return (s || '').trim().toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');  // strip diacritics
+      .replace(/[أإآ]/g, 'ا')   // توحيد الألف
+      .replace(/ة/g, 'ه')       // توحيد التاء المربوطة
+      .replace(/ى/g, 'ي')       // توحيد الياء
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  // ── Score a member against query parts ───────────────────────────────────
-  // Returns a score >= 0; higher = better match.  0 = no match.
+  // حساب درجة التطابق
   function _score(member, parts) {
-    const name = _norm(member.name);
+    const name  = _norm(member.name);
     const words = name.split(/\s+/);
-
     let score = 0;
+
     parts.forEach(p => {
-      if (name === p) score += 100;          // exact full name
+      if (name === p)            score += 100;
       else if (name.startsWith(p)) score += 60;
-      else if (name.includes(p)) score += 30;
-      // also check individual words
+      else if (name.includes(p))   score += 30;
       words.forEach(w => {
-        if (w === p) score += 20;
+        if (w === p)             score += 20;
         else if (w.startsWith(p)) score += 10;
       });
     });
     return score;
   }
 
-  // ── Run search ────────────────────────────────────────────────────────────
+  // تنفيذ البحث
   function _doSearch() {
-    const raw   = input().value.trim();
+    const raw = getInput().value.trim();
     if (!raw) { _hideResults(); return; }
 
-    const parts  = _norm(raw).split(/\s+/).filter(Boolean);
+    const parts   = _norm(raw).split(/\s+/).filter(Boolean);
     const members = Tree.getMembers();
 
     const scored = members
       .map(m => ({ m, score: _score(m, parts) }))
       .filter(x => x.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 20);   // show max 20 results
+      .slice(0, 20);
 
     if (scored.length === 0) {
-      _showResults([{ label: 'No results found', sub: '', id: null }]);
+      _showResults([{ label: 'لا توجد نتائج', sub: '', id: null }]);
       return;
     }
 
     if (scored.length === 1) {
-      // Single match: jump straight to it
       _selectMember(scored[0].m.id);
       _hideResults();
       return;
     }
 
-    // Multiple matches: show list
     _showResults(scored.map(x => ({
       label: x.m.name,
       sub:   [x.m.birth_date, x.m.job].filter(Boolean).join(' · '),
@@ -72,9 +69,8 @@ const Search = (() => {
     })));
   }
 
-  // ── Show/hide results dropdown ────────────────────────────────────────────
   function _showResults(items) {
-    const el = results();
+    const el = getResults();
     el.innerHTML = items.map(item => `
       <div class="search-result-item" tabindex="0" data-id="${item.id || ''}">
         <div>${item.label}</div>
@@ -82,49 +78,45 @@ const Search = (() => {
       </div>
     `).join('');
 
-    el.querySelectorAll('.search-result-item[data-id]').forEach(row => {
-      row.addEventListener('click', () => {
+    el.querySelectorAll('[data-id]').forEach(row => {
+      const handler = () => {
         const id = row.dataset.id;
         if (id) _selectMember(id);
         _hideResults();
-        input().value = row.querySelector('div').textContent;
-      });
-      row.addEventListener('keydown', e => {
-        if (e.key === 'Enter') row.click();
-      });
+        getInput().value = row.querySelector('div').textContent;
+      };
+      row.addEventListener('click', handler);
+      row.addEventListener('keydown', e => { if (e.key === 'Enter') handler(); });
     });
 
     el.classList.add('open');
   }
 
   function _hideResults() {
-    results().classList.remove('open');
-    results().innerHTML = '';
+    getResults().classList.remove('open');
+    getResults().innerHTML = '';
   }
 
-  // ── Navigate to member ────────────────────────────────────────────────────
   function _selectMember(id) {
     Tree.centreOnNode(id);
     Tree.highlight(id);
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
-    let debounceTimer;
+    let timer;
 
-    input().addEventListener('input', () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(_doSearch, 250);
+    getInput().addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(_doSearch, 280);
     });
 
-    input().addEventListener('keydown', e => {
-      if (e.key === 'Enter') { clearTimeout(debounceTimer); _doSearch(); }
+    getInput().addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { clearTimeout(timer); _doSearch(); }
       if (e.key === 'Escape') _hideResults();
     });
 
-    btn().addEventListener('click', _doSearch);
+    getBtn().addEventListener('click', _doSearch);
 
-    // Close dropdown when clicking outside
     document.addEventListener('mousedown', e => {
       if (!e.target.closest('.search-wrapper')) _hideResults();
     });
