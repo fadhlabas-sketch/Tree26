@@ -10,11 +10,14 @@ const Sheets = (() => {
   // ── Internal helper ──────────────────────────────────────────────────────
   async function _call(params) {
     const url = CONFIG.APPS_SCRIPT_URL;
-    if (!url || url === 'https://script.google.com/macros/s/AKfycbxLnajWmvokIIYTiyXIj9lF_akeYNQS_qhbzQ6hhdJCD0cco7K2EgbrOD0SYPRJAew/exec') {
+    // Only block if URL is still the default placeholder (not yet configured)
+    if (!url || url === 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
       throw new Error('Apps Script URL not configured. See js/config.js');
     }
     const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${url}?${qs}`);
+    // Apps Script Web Apps redirect — must follow redirects
+    const res = await fetch(`${url}?${qs}`, { redirect: 'follow' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     const json = await res.json();
     if (json.error) throw new Error(json.error);
     return json;
