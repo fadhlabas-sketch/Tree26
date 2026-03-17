@@ -1,43 +1,39 @@
 /**
  * tree.js
  * =======
- * Builds a Reingold–Tilford-style tree layout and renders
- * nodes + SVG links.  Supports pan & zoom for 600+ members.
+ * محرك تخطيط وعرض الشجرة
+ * يدعم أكثر من 600 عضو مع تحريك وتكبير
  */
 
 const Tree = (() => {
 
-  // ── State ─────────────────────────────────────────────────────────────────
-  let _members   = [];   // raw data from Sheets
-  let _nodeMap   = {};   // id → member
-  let _positions = {};   // id → {x, y}
-  let _pan       = { x: 0, y: 0 };
-  let _zoom      = 1;
+  let _members    = [];
+  let _nodeMap    = {};
+  let _positions  = {};
+  let _pan        = { x: 0, y: 0 };
+  let _zoom       = 1;
   let _isDragging = false;
   let _dragStart  = { x: 0, y: 0, px: 0, py: 0 };
 
-  const container  = () => document.getElementById('treeContainer');
-  const nodesDiv   = () => document.getElementById('nodesContainer');
-  const svg        = () => document.getElementById('linksSvg');
+  const getContainer  = () => document.getElementById('treeContainer');
+  const getNodesDiv   = () => document.getElementById('nodesContainer');
+  const getSvg        = () => document.getElementById('linksSvg');
 
-  // ── Build lookup map ──────────────────────────────────────────────────────
+  // ── بناء خريطة id → عضو ──────────────────────────────────────────────────
   function _buildMap(members) {
     _nodeMap = {};
     members.forEach(m => { _nodeMap[m.id] = m; });
   }
 
-  // ── Reingold–Tilford layout ───────────────────────────────────────────────
-  // Returns positions {x,y} for each node id.
-  // We do a two-pass: first assign x by in-order traversal, then y by depth.
-
+  // ── خوارزمية تخطيط الشجرة ────────────────────────────────────────────────
   function _layoutTree(members) {
     const W = CONFIG.LAYOUT.NODE_WIDTH  + CONFIG.LAYOUT.H_SPACING;
     const H = CONFIG.LAYOUT.NODE_HEIGHT + CONFIG.LAYOUT.V_SPACING;
 
-    // Find roots (members with no parent, or parent not in map)
+    // إيجاد الجذور (بدون أب)
     const roots = members.filter(m => !m.parent_id || !_nodeMap[m.parent_id]);
 
-    // Build children map
+    // بناء خريطة الأبناء
     const childrenOf = {};
     members.forEach(m => {
       if (!childrenOf[m.id]) childrenOf[m.id] = [];
@@ -48,18 +44,15 @@ const Tree = (() => {
     });
 
     const positions = {};
-    let xCounter = 0;  // global left-to-right counter for leaves
+    let xCounter = 0;
 
-    // Post-order: assign x so each node is centred over its children
     function assignX(id, depth) {
       const children = childrenOf[id] || [];
       if (children.length === 0) {
-        // Leaf node
         positions[id] = { x: xCounter * W, y: depth * H };
         xCounter++;
       } else {
         children.forEach(cid => assignX(cid, depth + 1));
-        // Parent centred over first and last child
         const first = positions[children[0]].x;
         const last  = positions[children[children.length - 1]].x;
         positions[id] = { x: (first + last) / 2, y: depth * H };
@@ -68,7 +61,7 @@ const Tree = (() => {
 
     roots.forEach(r => assignX(r.id, 0));
 
-    // Handle orphans (members whose parent_id was set but parent is missing)
+    // معالجة الأعضاء المنفصلين
     members.forEach(m => {
       if (!positions[m.id]) {
         positions[m.id] = { x: xCounter * W, y: 0 };
@@ -79,55 +72,51 @@ const Tree = (() => {
     return positions;
   }
 
-  // ── Render nodes ──────────────────────────────────────────────────────────
+  // ── رسم العقد ─────────────────────────────────────────────────────────────
   function _renderNodes(members, positions) {
-    const container = nodesDiv();
-    container.innerHTML = '';
+    const div = getNodesDiv();
+    div.innerHTML = '';
 
     members.forEach(m => {
       const pos = positions[m.id];
       if (!pos) return;
 
       const el = document.createElement('div');
-      el.className = 'tree-node';
+      el.className  = 'tree-node';
       el.dataset.id = m.id;
-      el.style.left = pos.x + 'px';
-      el.style.top  = pos.y + 'px';
+      el.style.left  = pos.x + 'px';
+      el.style.top   = pos.y + 'px';
       el.style.width = CONFIG.LAYOUT.NODE_WIDTH + 'px';
 
       const nameEl = document.createElement('div');
-      nameEl.className = 'node-name';
+      nameEl.className   = 'node-name';
       nameEl.textContent = m.name;
       el.appendChild(nameEl);
 
-      container.appendChild(el);
+      div.appendChild(el);
     });
   }
 
-  // ── Render SVG links ──────────────────────────────────────────────────────
+  // ── رسم خطوط الروابط SVG ─────────────────────────────────────────────────
   function _renderLinks(members, positions) {
-    const el = svg();
-    // Use innerHTML for performance on 600+ nodes
     let paths = '';
-
     members.forEach(m => {
       if (!m.parent_id || !positions[m.parent_id] || !positions[m.id]) return;
 
-      const px = positions[m.parent_id].x + CONFIG.LAYOUT.NODE_WIDTH / 2;
-      const py = positions[m.parent_id].y + CONFIG.LAYOUT.NODE_HEIGHT;
-      const cx = positions[m.id].x + CONFIG.LAYOUT.NODE_WIDTH / 2;
-      const cy = positions[m.id].y;
-
+      const px   = positions[m.parent_id].x + CONFIG.LAYOUT.NODE_WIDTH / 2;
+      const py   = positions[m.parent_id].y + CONFIG.LAYOUT.NODE_HEIGHT;
+      const cx   = positions[m.id].x + CONFIG.LAYOUT.NODE_WIDTH / 2;
+      const cy   = positions[m.id].y;
       const midY = (py + cy) / 2;
-      paths += `<path class="tree-link" d="M${px},${py} C${px},${midY} ${cx},${midY} ${cx},${cy}" />`;
-    });
 
-    el.innerHTML = paths;
+      paths += `<path class="tree-link" d="M${px},${py} C${px},${midY} ${cx},${midY} ${cx},${cy}"/>`;
+    });
+    getSvg().innerHTML = paths;
   }
 
-  // ── Resize SVG to cover full virtual canvas ───────────────────────────────
+  // ── ضبط حجم SVG ───────────────────────────────────────────────────────────
   function _fitSvg(positions) {
-    const el = svg();
+    const el = getSvg();
     let maxX = 0, maxY = 0;
     Object.values(positions).forEach(p => {
       if (p.x > maxX) maxX = p.x;
@@ -140,20 +129,22 @@ const Tree = (() => {
     el.setAttribute('viewBox', `0 0 ${w} ${h}`);
   }
 
-  // ── Pan & Zoom ────────────────────────────────────────────────────────────
+  // ── تطبيق الإزاحة والتكبير ───────────────────────────────────────────────
   function _applyTransform() {
-    nodesDiv().style.transform = `translate(${_pan.x}px,${_pan.y}px) scale(${_zoom})`;
-    svg().style.transform       = `translate(${_pan.x}px,${_pan.y}px) scale(${_zoom})`;
+    const t = `translate(${_pan.x}px,${_pan.y}px) scale(${_zoom})`;
+    getNodesDiv().style.transform = t;
+    getSvg().style.transform      = t;
   }
 
+  // ── تهيئة السحب والتكبير ─────────────────────────────────────────────────
   function _initPanZoom() {
-    const ct = container();
+    const ct = getContainer();
 
-    // ── Mouse drag ──
+    // سحب بالماوس
     ct.addEventListener('mousedown', e => {
       if (e.target.closest('.tree-node')) return;
       _isDragging = true;
-      _dragStart = { x: e.clientX, y: e.clientY, px: _pan.x, py: _pan.y };
+      _dragStart  = { x: e.clientX, y: e.clientY, px: _pan.x, py: _pan.y };
       ct.classList.add('grabbing');
     });
     window.addEventListener('mousemove', e => {
@@ -167,7 +158,7 @@ const Tree = (() => {
       ct.classList.remove('grabbing');
     });
 
-    // ── Touch drag ──
+    // سحب باللمس (إصبع واحد)
     let t0 = null;
     ct.addEventListener('touchstart', e => {
       if (e.touches.length === 1 && !e.target.closest('.tree-node')) {
@@ -182,15 +173,15 @@ const Tree = (() => {
     }, { passive: true });
     ct.addEventListener('touchend', () => { t0 = null; });
 
-    // ── Mouse wheel zoom ──
+    // تكبير بعجلة الماوس
     ct.addEventListener('wheel', e => {
       e.preventDefault();
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      _zoom = Math.min(2, Math.max(0.2, _zoom * delta));
+      _zoom = Math.min(2.5, Math.max(0.15, _zoom * delta));
       _applyTransform();
     }, { passive: false });
 
-    // ── Pinch zoom ──
+    // تكبير بإصبعين (pinch)
     let initDist = 0, initZoom = 1;
     ct.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
@@ -207,51 +198,52 @@ const Tree = (() => {
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      _zoom = Math.min(2, Math.max(0.2, initZoom * (dist / initDist)));
+      _zoom = Math.min(2.5, Math.max(0.15, initZoom * (dist / initDist)));
       _applyTransform();
     }, { passive: true });
 
-    // ── Zoom buttons ──
-    const zoomControls = document.createElement('div');
-    zoomControls.className = 'zoom-controls';
-    zoomControls.innerHTML = `
-      <button class="zoom-btn" id="zoomIn" title="Zoom In">+</button>
-      <button class="zoom-btn" id="zoomOut" title="Zoom Out">−</button>
-      <button class="zoom-btn" id="zoomReset" title="Reset" style="font-size:13px">⌂</button>
+    // أزرار التكبير
+    const zoomDiv = document.createElement('div');
+    zoomDiv.className = 'zoom-controls';
+    zoomDiv.innerHTML = `
+      <button class="zoom-btn" id="zoomIn"    title="تكبير">+</button>
+      <button class="zoom-btn" id="zoomOut"   title="تصغير">−</button>
+      <button class="zoom-btn" id="zoomReset" title="إعادة ضبط" style="font-size:15px">⌂</button>
     `;
-    document.body.appendChild(zoomControls);
+    document.body.appendChild(zoomDiv);
 
-    document.getElementById('zoomIn').onclick    = () => { _zoom = Math.min(2, _zoom * 1.2); _applyTransform(); };
-    document.getElementById('zoomOut').onclick   = () => { _zoom = Math.max(0.2, _zoom * 0.8); _applyTransform(); };
+    document.getElementById('zoomIn').onclick    = () => { _zoom = Math.min(2.5, _zoom * 1.2); _applyTransform(); };
+    document.getElementById('zoomOut').onclick   = () => { _zoom = Math.max(0.15, _zoom * 0.8); _applyTransform(); };
     document.getElementById('zoomReset').onclick = () => centreOnRoot();
   }
 
-  // ── Centre view on a specific node ───────────────────────────────────────
+  // ── التمركز على عقدة معينة ───────────────────────────────────────────────
   function centreOnNode(id) {
     const pos = _positions[id];
     if (!pos) return;
-    const ct = container();
-    const vw = ct.clientWidth;
-    const vh = ct.clientHeight;
-    _zoom = 1;
-    _pan.x = vw / 2 - (pos.x + CONFIG.LAYOUT.NODE_WIDTH / 2);
-    _pan.y = vh / 2 - (pos.y + CONFIG.LAYOUT.NODE_HEIGHT / 2) - 20;
+    const ct = getContainer();
+    _zoom  = 1.2;
+    _pan.x = ct.clientWidth  / 2 - (pos.x + CONFIG.LAYOUT.NODE_WIDTH  / 2) * _zoom;
+    _pan.y = ct.clientHeight / 2 - (pos.y + CONFIG.LAYOUT.NODE_HEIGHT / 2) * _zoom - 20;
     _applyTransform();
   }
 
+  // ── التمركز على الجذر ────────────────────────────────────────────────────
   function centreOnRoot() {
     if (_members.length === 0) return;
     const root = _members.find(m => !m.parent_id || !_nodeMap[m.parent_id]) || _members[0];
-    _zoom = 0.8;
-    const ct = container();
-    _pan.x = ct.clientWidth / 2 - (_positions[root.id]?.x || 0) - CONFIG.LAYOUT.NODE_WIDTH / 2;
-    _pan.y = 40;
+    const pos  = _positions[root.id];
+    if (!pos) return;
+    const ct = getContainer();
+    _zoom  = 0.9;
+    _pan.x = ct.clientWidth / 2 - (pos.x + CONFIG.LAYOUT.NODE_WIDTH / 2) * _zoom;
+    _pan.y = 50;
     _applyTransform();
   }
 
-  // ── Public: full render ───────────────────────────────────────────────────
+  // ── العرض الكامل ─────────────────────────────────────────────────────────
   function render(members) {
-    _members = members;
+    _members   = members;
     _buildMap(members);
     _positions = _layoutTree(members);
     _renderNodes(members, _positions);
@@ -260,26 +252,15 @@ const Tree = (() => {
     centreOnRoot();
   }
 
-  // ── Public: highlight a node ──────────────────────────────────────────────
+  // ── تمييز عقدة ───────────────────────────────────────────────────────────
   function highlight(id) {
     document.querySelectorAll('.tree-node.highlighted').forEach(n => n.classList.remove('highlighted'));
     const el = document.querySelector(`.tree-node[data-id="${id}"]`);
     if (el) el.classList.add('highlighted');
   }
 
-  // ── Public: get member by id ──────────────────────────────────────────────
-  function getMember(id) { return _nodeMap[id]; }
+  function getMember(id)  { return _nodeMap[id]; }
+  function getMembers()   { return _members; }
 
-  // ── Public: get all members ───────────────────────────────────────────────
-  function getMembers() { return _members; }
-
-  return {
-    render,
-    centreOnNode,
-    centreOnRoot,
-    highlight,
-    getMember,
-    getMembers,
-    initPanZoom: _initPanZoom,
-  };
+  return { render, centreOnNode, centreOnRoot, highlight, getMember, getMembers, initPanZoom: _initPanZoom };
 })();
