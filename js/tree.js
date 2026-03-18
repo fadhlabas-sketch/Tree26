@@ -1,23 +1,27 @@
 /**
- * tree.js
- * =======
- * محرك تخطيط وعرض الشجرة
- * يدعم أكثر من 600 عضو مع تحريك وتكبير
+ * tree.js — محرك الشجرة
+ * =======================
+ * الإصلاحات:
+ *  1. SVG والعقد في wrapper واحد ← يحل انفصال الخطوط عند الزوم
+ *  2. transform-origin ثابت دائماً
+ *  3. إضافة وظيفة highlightLineage() لإظهار مسار الأصل
  */
 
 const Tree = (() => {
 
-  let _members    = [];
-  let _nodeMap    = {};
-  let _positions  = {};
-  let _pan        = { x: 0, y: 0 };
-  let _zoom       = 1;
+  let _members   = [];
+  let _nodeMap   = {};
+  let _positions = {};
+  let _pan       = { x: 0, y: 0 };
+  let _zoom      = 1;
   let _isDragging = false;
   let _dragStart  = { x: 0, y: 0, px: 0, py: 0 };
 
-  const getContainer  = () => document.getElementById('treeContainer');
-  const getNodesDiv   = () => document.getElementById('nodesContainer');
-  const getSvg        = () => document.getElementById('linksSvg');
+  // المراجع الثابتة
+  const getCt      = () => document.getElementById('treeContainer');
+  const getWrapper = () => document.getElementById('treeWrapper');   // wrapper جديد
+  const getNodes   = () => document.getElementById('nodesContainer');
+  const getSvg     = () => document.getElementById('linksSvg');
 
   // ── بناء خريطة id → عضو ──────────────────────────────────────────────────
   function _buildMap(members) {
@@ -25,15 +29,13 @@ const Tree = (() => {
     members.forEach(m => { _nodeMap[m.id] = m; });
   }
 
-  // ── خوارزمية تخطيط الشجرة ────────────────────────────────────────────────
+  // ── تخطيط الشجرة ──────────────────────────────────────────────────────────
   function _layoutTree(members) {
     const W = CONFIG.LAYOUT.NODE_WIDTH  + CONFIG.LAYOUT.H_SPACING;
     const H = CONFIG.LAYOUT.NODE_HEIGHT + CONFIG.LAYOUT.V_SPACING;
 
-    // إيجاد الجذور (بدون أب)
     const roots = members.filter(m => !m.parent_id || !_nodeMap[m.parent_id]);
 
-    // بناء خريطة الأبناء
     const childrenOf = {};
     members.forEach(m => {
       if (!childrenOf[m.id]) childrenOf[m.id] = [];
@@ -61,7 +63,6 @@ const Tree = (() => {
 
     roots.forEach(r => assignX(r.id, 0));
 
-    // معالجة الأعضاء المنفصلين
     members.forEach(m => {
       if (!positions[m.id]) {
         positions[m.id] = { x: xCounter * W, y: 0 };
@@ -74,9 +75,8 @@ const Tree = (() => {
 
   // ── رسم العقد ─────────────────────────────────────────────────────────────
   function _renderNodes(members, positions) {
-    const div = getNodesDiv();
+    const div = getNodes();
     div.innerHTML = '';
-
     members.forEach(m => {
       const pos = positions[m.id];
       if (!pos) return;
@@ -97,7 +97,7 @@ const Tree = (() => {
     });
   }
 
-  // ── رسم خطوط الروابط SVG ─────────────────────────────────────────────────
+  // ── رسم الروابط ───────────────────────────────────────────────────────────
   function _renderLinks(members, positions) {
     let paths = '';
     members.forEach(m => {
@@ -105,40 +105,50 @@ const Tree = (() => {
 
       const px   = positions[m.parent_id].x + CONFIG.LAYOUT.NODE_WIDTH / 2;
       const py   = positions[m.parent_id].y + CONFIG.LAYOUT.NODE_HEIGHT;
-      const cx   = positions[m.id].x + CONFIG.LAYOUT.NODE_WIDTH / 2;
+      const cx   = positions[m.id].x        + CONFIG.LAYOUT.NODE_WIDTH / 2;
       const cy   = positions[m.id].y;
       const midY = (py + cy) / 2;
 
-      paths += `<path class="tree-link" d="M${px},${py} C${px},${midY} ${cx},${midY} ${cx},${cy}"/>`;
+      paths += `<path class="tree-link" data-child="${m.id}" data-parent="${m.parent_id}"
+        d="M${px},${py} C${px},${midY} ${cx},${midY} ${cx},${cy}"/>`;
     });
     getSvg().innerHTML = paths;
   }
 
-  // ── ضبط حجم SVG ───────────────────────────────────────────────────────────
-  function _fitSvg(positions) {
-    const el = getSvg();
+  // ── ضبط حجم SVG والـ wrapper ──────────────────────────────────────────────
+  function _fitCanvas(positions) {
     let maxX = 0, maxY = 0;
     Object.values(positions).forEach(p => {
       if (p.x > maxX) maxX = p.x;
       if (p.y > maxY) maxY = p.y;
     });
-    const w = maxX + CONFIG.LAYOUT.NODE_WIDTH  + 200;
-    const h = maxY + CONFIG.LAYOUT.NODE_HEIGHT + 200;
-    el.style.width  = w + 'px';
-    el.style.height = h + 'px';
-    el.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const w = maxX + CONFIG.LAYOUT.NODE_WIDTH  + 300;
+    const h = maxY + CONFIG.LAYOUT.NODE_HEIGHT + 300;
+
+    // SVG بنفس حجم مساحة الشجرة
+    const svgEl = getSvg();
+    svgEl.style.width  = w + 'px';
+    svgEl.style.height = h + 'px';
+    svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+    // العقد تأخذ نفس الحجم
+    getNodes().style.width  = w + 'px';
+    getNodes().style.height = h + 'px';
+
+    // الـ wrapper يحتوي كليهما
+    getWrapper().style.width  = w + 'px';
+    getWrapper().style.height = h + 'px';
   }
 
-  // ── تطبيق الإزاحة والتكبير ───────────────────────────────────────────────
+  // ── تطبيق Transform على الـ wrapper الواحد فقط ───────────────────────────
+  // هذا هو جوهر الإصلاح: transform واحد يحرك SVG والعقد معاً
   function _applyTransform() {
-    const t = `translate(${_pan.x}px,${_pan.y}px) scale(${_zoom})`;
-    getNodesDiv().style.transform = t;
-    getSvg().style.transform      = t;
+    getWrapper().style.transform = `translate(${_pan.x}px, ${_pan.y}px) scale(${_zoom})`;
   }
 
   // ── تهيئة السحب والتكبير ─────────────────────────────────────────────────
   function _initPanZoom() {
-    const ct = getContainer();
+    const ct = getCt();
 
     // سحب بالماوس
     ct.addEventListener('mousedown', e => {
@@ -158,7 +168,7 @@ const Tree = (() => {
       ct.classList.remove('grabbing');
     });
 
-    // سحب باللمس (إصبع واحد)
+    // سحب باللمس
     let t0 = null;
     ct.addEventListener('touchstart', e => {
       if (e.touches.length === 1 && !e.target.closest('.tree-node')) {
@@ -173,16 +183,24 @@ const Tree = (() => {
     }, { passive: true });
     ct.addEventListener('touchend', () => { t0 = null; });
 
-    // تكبير بعجلة الماوس
+    // تكبير بالعجلة — يتمركز حول نقطة الماوس
     ct.addEventListener('wheel', e => {
       e.preventDefault();
+      const rect  = ct.getBoundingClientRect();
+      const mx    = e.clientX - rect.left;
+      const my    = e.clientY - rect.top;
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      _zoom = Math.min(2.5, Math.max(0.15, _zoom * delta));
+      const newZoom = Math.min(2.5, Math.max(0.15, _zoom * delta));
+
+      // تعديل الإزاحة حتى تبقى نقطة الماوس ثابتة
+      _pan.x = mx - (mx - _pan.x) * (newZoom / _zoom);
+      _pan.y = my - (my - _pan.y) * (newZoom / _zoom);
+      _zoom  = newZoom;
       _applyTransform();
     }, { passive: false });
 
-    // تكبير بإصبعين (pinch)
-    let initDist = 0, initZoom = 1;
+    // تكبير بإصبعين
+    let initDist = 0, initZoom = 1, pinchCx = 0, pinchCy = 0;
     ct.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
         initDist = Math.hypot(
@@ -190,15 +208,21 @@ const Tree = (() => {
           e.touches[0].clientY - e.touches[1].clientY
         );
         initZoom = _zoom;
+        const rect = ct.getBoundingClientRect();
+        pinchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+        pinchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
       }
     }, { passive: true });
     ct.addEventListener('touchmove', e => {
       if (e.touches.length !== 2) return;
-      const dist = Math.hypot(
+      const dist    = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      _zoom = Math.min(2.5, Math.max(0.15, initZoom * (dist / initDist)));
+      const newZoom = Math.min(2.5, Math.max(0.15, initZoom * (dist / initDist)));
+      _pan.x = pinchCx - (pinchCx - _pan.x) * (newZoom / _zoom);
+      _pan.y = pinchCy - (pinchCy - _pan.y) * (newZoom / _zoom);
+      _zoom  = newZoom;
       _applyTransform();
     }, { passive: true });
 
@@ -208,7 +232,7 @@ const Tree = (() => {
     zoomDiv.innerHTML = `
       <button class="zoom-btn" id="zoomIn"    title="تكبير">+</button>
       <button class="zoom-btn" id="zoomOut"   title="تصغير">−</button>
-      <button class="zoom-btn" id="zoomReset" title="إعادة ضبط" style="font-size:15px">⌂</button>
+      <button class="zoom-btn" id="zoomReset" title="إعادة ضبط">⌂</button>
     `;
     document.body.appendChild(zoomDiv);
 
@@ -217,28 +241,71 @@ const Tree = (() => {
     document.getElementById('zoomReset').onclick = () => centreOnRoot();
   }
 
-  // ── التمركز على عقدة معينة ───────────────────────────────────────────────
+  // ── التمركز على عقدة ─────────────────────────────────────────────────────
   function centreOnNode(id) {
     const pos = _positions[id];
     if (!pos) return;
-    const ct = getContainer();
+    const ct = getCt();
     _zoom  = 1.2;
     _pan.x = ct.clientWidth  / 2 - (pos.x + CONFIG.LAYOUT.NODE_WIDTH  / 2) * _zoom;
-    _pan.y = ct.clientHeight / 2 - (pos.y + CONFIG.LAYOUT.NODE_HEIGHT / 2) * _zoom - 20;
+    _pan.y = ct.clientHeight / 2 - (pos.y + CONFIG.LAYOUT.NODE_HEIGHT / 2) * _zoom;
     _applyTransform();
   }
 
-  // ── التمركز على الجذر ────────────────────────────────────────────────────
   function centreOnRoot() {
     if (_members.length === 0) return;
     const root = _members.find(m => !m.parent_id || !_nodeMap[m.parent_id]) || _members[0];
     const pos  = _positions[root.id];
     if (!pos) return;
-    const ct = getContainer();
+    const ct = getCt();
     _zoom  = 0.9;
     _pan.x = ct.clientWidth / 2 - (pos.x + CONFIG.LAYOUT.NODE_WIDTH / 2) * _zoom;
-    _pan.y = 50;
+    _pan.y = 40;
     _applyTransform();
+  }
+
+  // ── تمييز عقدة بالبحث ────────────────────────────────────────────────────
+  function highlight(id) {
+    document.querySelectorAll('.tree-node.highlighted').forEach(n => n.classList.remove('highlighted'));
+    const el = document.querySelector(`.tree-node[data-id="${id}"]`);
+    if (el) el.classList.add('highlighted');
+  }
+
+  // ── إظهار مسار الأصل (سلسلة الأجداد) ────────────────────────────────────
+  // يُلوّن كل الروابط والعقد من الشخص المحدد حتى أعلى جد
+  function highlightLineage(id) {
+    // أزل التمييز السابق
+    clearLineage();
+
+    const ancestorIds = new Set();
+    let current = id;
+    while (current) {
+      ancestorIds.add(current);
+      const m = _nodeMap[current];
+      current = m?.parent_id && _nodeMap[m.parent_id] ? m.parent_id : null;
+    }
+
+    // لوّن العقد
+    ancestorIds.forEach(aid => {
+      const el = document.querySelector(`.tree-node[data-id="${aid}"]`);
+      if (el) el.classList.add('lineage-node');
+    });
+
+    // لوّن الروابط
+    document.querySelectorAll('.tree-link').forEach(path => {
+      const child  = path.getAttribute('data-child');
+      const parent = path.getAttribute('data-parent');
+      if (ancestorIds.has(child) && ancestorIds.has(parent)) {
+        path.classList.add('lineage-link');
+      }
+    });
+
+    return ancestorIds;
+  }
+
+  function clearLineage() {
+    document.querySelectorAll('.tree-node.lineage-node').forEach(n => n.classList.remove('lineage-node'));
+    document.querySelectorAll('.tree-link.lineage-link').forEach(p => p.classList.remove('lineage-link'));
   }
 
   // ── العرض الكامل ─────────────────────────────────────────────────────────
@@ -248,19 +315,24 @@ const Tree = (() => {
     _positions = _layoutTree(members);
     _renderNodes(members, _positions);
     _renderLinks(members, _positions);
-    _fitSvg(_positions);
+    _fitCanvas(_positions);
     centreOnRoot();
   }
 
-  // ── تمييز عقدة ───────────────────────────────────────────────────────────
-  function highlight(id) {
-    document.querySelectorAll('.tree-node.highlighted').forEach(n => n.classList.remove('highlighted'));
-    const el = document.querySelector(`.tree-node[data-id="${id}"]`);
-    if (el) el.classList.add('highlighted');
-  }
+  function getMember(id) { return _nodeMap[id]; }
+  function getMembers()  { return _members; }
+  function getPositions() { return _positions; }
 
-  function getMember(id)  { return _nodeMap[id]; }
-  function getMembers()   { return _members; }
-
-  return { render, centreOnNode, centreOnRoot, highlight, getMember, getMembers, initPanZoom: _initPanZoom };
+  return {
+    render,
+    centreOnNode,
+    centreOnRoot,
+    highlight,
+    highlightLineage,
+    clearLineage,
+    getMember,
+    getMembers,
+    getPositions,
+    initPanZoom: _initPanZoom,
+  };
 })();
