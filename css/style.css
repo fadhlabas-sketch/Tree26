@@ -388,4 +388,11 @@ body {
 .btn-secondary:hover { border-color:#e05c5c;color:#e05c5c; }
 .tree-link.lineage-link { stroke:#ff6b35!important;stroke-width:3!important;filter:drop-shadow(0 0 4px rgba(255,107,53,.7)); }
 .tree-node.lineage-node { border-color:#ff6b35!important;background:#3d1f0a!important;box-shadow:0 0 14px rgba(255,107,53,.45)!important; }
- 
+
+/* ── تلميح النموذج ── */
+.form-hint {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
