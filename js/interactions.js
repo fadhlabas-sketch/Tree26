@@ -1,25 +1,23 @@
 /**
  * interactions.js
  * ===============
- * - نقر واحد → عرض التفاصيل
- * - ضغط مطوّل → قائمة إضافة ابن / تعديل بيانات
+ * الإصلاحات:
+ *  1. نقرة واحدة سريعة  → تفاصيل الشخص
+ *  2. ضغط مطوّل         → قائمة (إضافة ابن / تعديل بيانات / إظهار الأصل)
+ *  3. لا ارتباك بين النقر والضغط المطوّل
  */
 
 const Interactions = (() => {
 
   let _currentNodeId  = null;
   let _longPressTimer = null;
+  let _longPressFired = false;   // ← المفتاح: هل فعلاً حدث ضغط مطوّل؟
 
-  const getDetailsPanel   = () => document.getElementById('detailsPanel');
-  const getDetailsContent = () => document.getElementById('detailsContent');
-  const getPanelOverlay   = () => document.getElementById('panelOverlay');
-  const getContextMenu    = () => document.getElementById('contextMenu');
-  const getModalBackdrop  = () => document.getElementById('modalBackdrop');
-  const getModalBody      = () => document.getElementById('modalBody');
+  const $ = id => document.getElementById(id);
 
-  // ── إشعار منبثق ───────────────────────────────────────────────────────────
+  // ── إشعار منبثق ──────────────────────────────────────────────────────────
   function showToast(msg, duration = 3200) {
-    const t = document.getElementById('toast');
+    const t = $('toast');
     t.textContent = msg;
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), duration);
@@ -50,48 +48,46 @@ const Interactions = (() => {
         </div>`)
       .join('');
 
-    getDetailsContent().innerHTML = `
+    $('detailsContent').innerHTML = `
       <div class="panel-avatar">👤</div>
       <div class="panel-name">${m.name}</div>
-      ${rows || '<p style="color:var(--text-muted);text-align:center;font-size:.87rem;margin-top:8px">لا توجد تفاصيل متاحة بعد.</p>'}
+      ${rows || '<p class="no-details">لا توجد تفاصيل متاحة بعد.<br/>اضغط مطولاً على الاسم لإضافة بيانات.</p>'}
     `;
-
-    getDetailsPanel().classList.add('open');
-    getPanelOverlay().classList.add('active');
+    $('detailsPanel').classList.add('open');
+    $('panelOverlay').classList.add('active');
   }
 
   function _closeDetails() {
-    getDetailsPanel().classList.remove('open');
-    getPanelOverlay().classList.remove('active');
+    $('detailsPanel').classList.remove('open');
+    $('panelOverlay').classList.remove('active');
   }
 
   // ── القائمة المنبثقة ──────────────────────────────────────────────────────
   function _showContextMenu(nodeId, x, y) {
     _currentNodeId = nodeId;
-    const menu = getContextMenu();
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const mw = 190, mh = 104;
-    // في الواجهة العربية (RTL) نضع القائمة على اليمين
-    const left = Math.max(8, Math.min(x - mw, vw - mw - 8));
-    const top  = Math.min(y, vh - mh - 8);
+    const menu = $('contextMenu');
+    const vw   = window.innerWidth, vh = window.innerHeight;
+    const mw   = 200, mh = 150;
+    const left = Math.max(8, Math.min(x - mw / 2, vw - mw - 8));
+    const top  = Math.min(y + 10, vh - mh - 8);
     menu.style.left = left + 'px';
     menu.style.top  = top  + 'px';
     menu.classList.add('visible');
   }
 
   function _hideContextMenu() {
-    getContextMenu().classList.remove('visible');
+    $('contextMenu').classList.remove('visible');
     _currentNodeId = null;
   }
 
   // ── نافذة النماذج ────────────────────────────────────────────────────────
   function _openModal(html) {
-    getModalBody().innerHTML = html;
-    getModalBackdrop().classList.add('open');
+    $('modalBody').innerHTML = html;
+    $('modalBackdrop').classList.add('open');
   }
 
   function _closeModal() {
-    getModalBackdrop().classList.remove('open');
+    $('modalBackdrop').classList.remove('open');
   }
 
   // ── نموذج إضافة ابن ──────────────────────────────────────────────────────
@@ -116,22 +112,19 @@ const Interactions = (() => {
       <p class="success-msg" id="fc_msg"></p>
     `);
 
-    document.getElementById('fc_submit').onclick = async () => {
-      const name = document.getElementById('fc_name').value.trim();
+    $('fc_submit').onclick = async () => {
+      const name = $('fc_name').value.trim();
       if (!name) { showToast('⚠️ الاسم الكامل مطلوب'); return; }
-
-      const btn = document.getElementById('fc_submit');
+      const btn = $('fc_submit');
       btn.textContent = 'جاري الإرسال…';
       btn.disabled    = true;
-
       try {
         await Sheets.submitAddChild({
-          parentId,
-          childName:   name,
-          birthDate:   document.getElementById('fc_birth').value,
-          submittedBy: document.getElementById('fc_by').value,
+          parentId, childName: name,
+          birthDate:   $('fc_birth').value,
+          submittedBy: $('fc_by').value,
         });
-        document.getElementById('fc_msg').textContent = '✅ تم إرسال الطلب! سيظهر بعد موافقة المدير.';
+        $('fc_msg').textContent  = '✅ تم إرسال الطلب! سيظهر بعد موافقة المدير.';
         btn.style.display = 'none';
       } catch (e) {
         showToast('❌ خطأ: ' + e.message);
@@ -175,22 +168,21 @@ const Interactions = (() => {
       <p class="success-msg" id="fd_msg"></p>
     `);
 
-    document.getElementById('fd_submit').onclick = async () => {
-      const btn = document.getElementById('fd_submit');
+    $('fd_submit').onclick = async () => {
+      const btn = $('fd_submit');
       btn.textContent = 'جاري الإرسال…';
       btn.disabled    = true;
       try {
         await Sheets.submitUpdateDetails({
-          memberId,
-          memberName:  m.name,
-          birthDate:   document.getElementById('fd_birth').value,
-          phone:       document.getElementById('fd_phone').value,
-          address:     document.getElementById('fd_address').value,
-          job:         document.getElementById('fd_job').value,
-          note:        document.getElementById('fd_note').value,
-          submittedBy: document.getElementById('fd_by').value,
+          memberId, memberName: m.name,
+          birthDate:   $('fd_birth').value,
+          phone:       $('fd_phone').value,
+          address:     $('fd_address').value,
+          job:         $('fd_job').value,
+          note:        $('fd_note').value,
+          submittedBy: $('fd_by').value,
         });
-        document.getElementById('fd_msg').textContent = '✅ تم إرسال التحديث! سيظهر بعد موافقة المدير.';
+        $('fd_msg').textContent  = '✅ تم إرسال التحديث! سيظهر بعد موافقة المدير.';
         btn.style.display = 'none';
       } catch (e) {
         showToast('❌ خطأ: ' + e.message);
@@ -200,9 +192,48 @@ const Interactions = (() => {
     };
   }
 
+  // ── إظهار الأصل (سلسلة الأجداد) ─────────────────────────────────────────
+  function _showLineage(memberId) {
+    const ancestors = Tree.highlightLineage(memberId);
+
+    // بناء نص الأجداد بالترتيب
+    const chain = [];
+    let current = memberId;
+    while (current) {
+      const m = Tree.getMember(current);
+      if (!m) break;
+      chain.unshift(m.name);
+      current = m.parent_id && Tree.getMember(m.parent_id) ? m.parent_id : null;
+    }
+
+    const member = Tree.getMember(memberId);
+
+    _openModal(`
+      <div class="modal-title">🔗 سلسلة الأصل</div>
+      <p class="parent-info">سلالة: <strong>${member?.name || memberId}</strong></p>
+      <div class="lineage-chain">
+        ${chain.map((name, i) => `
+          <div class="lineage-step ${i === chain.length - 1 ? 'lineage-step-current' : ''}">
+            <span class="lineage-index">${i + 1}</span>
+            <span class="lineage-name">${name}</span>
+            ${i < chain.length - 1 ? '<div class="lineage-arrow">↓</div>' : ''}
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-secondary" id="clearLineageBtn">✕ إخفاء التمييز</button>
+    `);
+
+    $('clearLineageBtn').onclick = () => {
+      Tree.clearLineage();
+      _closeModal();
+    };
+  }
+
   // ── كشف الضغط المطوّل ────────────────────────────────────────────────────
   function _startLongPress(nodeId, x, y) {
+    _longPressFired = false;
     _longPressTimer = setTimeout(() => {
+      _longPressFired = true;
       if (navigator.vibrate) navigator.vibrate(50);
       const el = document.querySelector(`.tree-node[data-id="${nodeId}"]`);
       if (el) el.classList.add('long-pressed');
@@ -219,11 +250,12 @@ const Interactions = (() => {
   // ── ربط الأحداث بكل عقدة ─────────────────────────────────────────────────
   function _attachNodeEvents(el) {
     const id = el.dataset.id;
-    let touchMoved = false, touchX, touchY;
+    let touchMoved = false, touchX = 0, touchY = 0;
 
-    // أحداث اللمس
+    // ── أحداث اللمس ──
     el.addEventListener('touchstart', e => {
-      touchMoved = false;
+      touchMoved      = false;
+      _longPressFired = false;
       touchX = e.touches[0].clientX;
       touchY = e.touches[0].clientY;
       _startLongPress(id, touchX, touchY);
@@ -232,59 +264,81 @@ const Interactions = (() => {
     el.addEventListener('touchmove', e => {
       const dx = Math.abs(e.touches[0].clientX - touchX);
       const dy = Math.abs(e.touches[0].clientY - touchY);
-      if (dx > 8 || dy > 8) { touchMoved = true; _cancelLongPress(id); }
+      if (dx > 8 || dy > 8) {
+        touchMoved = true;
+        _cancelLongPress(id);
+      }
     }, { passive: true });
 
     el.addEventListener('touchend', () => {
       _cancelLongPress(id);
-      if (!touchMoved && !getContextMenu().classList.contains('visible')) {
+      // فتح التفاصيل فقط إذا:
+      // 1. لم تتحرك الأصابع
+      // 2. لم يُفعَّل الضغط المطوّل
+      // 3. القائمة مغلقة
+      if (!touchMoved && !_longPressFired && !$('contextMenu').classList.contains('visible')) {
         _openDetails(id);
       }
     });
 
-    // أحداث الماوس
+    // ── أحداث الماوس ──
     let mouseDownTime = 0, mouseMoved = false;
 
     el.addEventListener('mousedown', e => {
-      mouseDownTime = Date.now();
-      mouseMoved    = false;
+      if (e.button !== 0) return;   // الزر الأيسر فقط
+      mouseDownTime   = Date.now();
+      mouseMoved      = false;
+      _longPressFired = false;
       _startLongPress(id, e.clientX, e.clientY);
     });
-    el.addEventListener('mousemove', () => { mouseMoved = true; _cancelLongPress(id); });
+
+    el.addEventListener('mousemove', () => {
+      if (Date.now() - mouseDownTime > 10) {
+        mouseMoved = true;
+        _cancelLongPress(id);
+      }
+    });
+
     el.addEventListener('mouseup', () => {
       _cancelLongPress(id);
       const elapsed = Date.now() - mouseDownTime;
-      if (!mouseMoved && elapsed < CONFIG.LONG_PRESS_DURATION && !getContextMenu().classList.contains('visible')) {
+      // فتح التفاصيل فقط عند نقر سريع وبدون تحرك وبدون ضغط مطوّل
+      if (!mouseMoved && !_longPressFired && elapsed < 300 && !$('contextMenu').classList.contains('visible')) {
         _openDetails(id);
       }
     });
+
     el.addEventListener('mouseleave', () => _cancelLongPress(id));
   }
 
-  // ── ربط كل العقد بعد الرسم ───────────────────────────────────────────────
   function attachAll() {
     document.querySelectorAll('.tree-node').forEach(_attachNodeEvents);
   }
 
   // ── التهيئة ───────────────────────────────────────────────────────────────
   function init() {
-    document.getElementById('closeDetails').onclick   = _closeDetails;
-    document.getElementById('panelOverlay').onclick   = _closeDetails;
-    document.getElementById('closeModal').onclick     = _closeModal;
+    $('closeDetails').onclick = _closeDetails;
+    $('panelOverlay').onclick = _closeDetails;
+    $('closeModal').onclick   = _closeModal;
 
-    document.getElementById('ctxAddChild').onclick = () => {
+    $('ctxAddChild').onclick = () => {
       const id = _currentNodeId; _hideContextMenu();
       if (id) _showAddChildForm(id);
     };
-    document.getElementById('ctxAddDetails').onclick = () => {
+    $('ctxAddDetails').onclick = () => {
       const id = _currentNodeId; _hideContextMenu();
       if (id) _showAddDetailsForm(id);
     };
+    $('ctxShowLineage').onclick = () => {
+      const id = _currentNodeId; _hideContextMenu();
+      if (id) _showLineage(id);
+    };
 
-    document.getElementById('modalBackdrop').addEventListener('click', e => {
-      if (e.target === document.getElementById('modalBackdrop')) _closeModal();
+    $('modalBackdrop').addEventListener('click', e => {
+      if (e.target === $('modalBackdrop')) _closeModal();
     });
 
+    // إغلاق القائمة عند النقر خارجها
     document.addEventListener('mousedown', e => {
       if (!e.target.closest('#contextMenu')) _hideContextMenu();
     });
