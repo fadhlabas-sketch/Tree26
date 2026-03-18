@@ -1,15 +1,16 @@
 /**
  * tree.js — شجرة العائلة
  * الجذر أسفل، الأبناء أعلى، تملأ الشاشة تلقائياً
+ * تم التعديل لمحاكاة شكل شجرة حقيقية (عقد عمودية، وجذع سميك)
  */
 
 const Tree = (() => {
 
-  // ── ثوابت التصميم ─────────────────────────────────────────────────────────
-  const OW     = 82;   // عرض البيضاوية
-  const OH     = 34;   // ارتفاع البيضاوية
-  const H_GAP  = 14;   // مسافة أفقية بين العقد
-  const V_GAP  = 70;   // مسافة رأسية بين الأجيال
+  // ── ثوابت التصميم (مُحدثة للشكل البيضاوي العمودي) ─────────────────────────
+  const OW     = 55;   // عرض البيضاوية (أضيق)
+  const OH     = 95;   // ارتفاع البيضاوية (أطول)
+  const H_GAP  = 25;   // مسافة أفقية بين العقد
+  const V_GAP  = 65;   // مسافة رأسية بين الأجيال
 
   let _members   = [];
   let _nodeMap   = {};
@@ -93,13 +94,12 @@ const Tree = (() => {
       const d = depths[m.id];
       pos[m.id] = {
         x:     rawPos[m.id] * unit + OW / 2,
-        // الجذر (d=0) في أسفل، الأوراق (d=maxDepth) في أعلى
         y:     (maxDepth - d) * (OH + V_GAP) + OH / 2,
         depth: d,
       };
     });
 
-    return { pos, maxDepth, leafCount: leafCounter };
+    return { pos, maxDepth, leafCount: leafCounter, depths, childMap };
   }
 
   // ── حساب الزوم التلقائي ليملأ الشاشة ──────────────────────────────────────
@@ -145,10 +145,20 @@ const Tree = (() => {
     });
   }
 
-  // ── رسم الأغصان ───────────────────────────────────────────────────────────
-  function _renderLinks(pos) {
-    const childMap = _buildChildMap();
+  // ── رسم الأغصان (تتغير سماكتها حسب عدد الأبناء لتشكل جذعاً) ───────────────
+  function _renderLinks(layoutData) {
+    const { pos, childMap } = layoutData;
     let svg = '';
+
+    // حساب "وزن" كل فرد (كم عدد أحفاده) لكي نجعل جذعه أسمك
+    const weight = {};
+    function calcWeight(id) {
+      if (!childMap[id] || childMap[id].length === 0) return (weight[id] = 1);
+      let w = 1; // الفرد نفسه
+      childMap[id].forEach(cid => { w += calcWeight(cid); });
+      return (weight[id] = w);
+    }
+    _members.filter(m => !m.parent_id || !_nodeMap[m.parent_id]).forEach(r => calcWeight(r.id));
 
     Object.keys(childMap).forEach(pid => {
       const pp = pos[pid];
@@ -156,27 +166,35 @@ const Tree = (() => {
 
       const children = childMap[pid];
 
-      // نقطة خروج: أعلى البيضاوية للأب
+      // خروج الخط من منتصف العقدة
       const sx = pp.x;
-      const sy = pp.y - OH / 2;
+      const sy = pp.y;
 
       children.forEach(cid => {
         const cp = pos[cid];
         if (!cp) return;
 
-        // نقطة وصول: أسفل بيضاوية الابن
+        // وصول الخط إلى منتصف العقدة
         const ex = cp.x;
-        const ey = cp.y + OH / 2;
+        const ey = cp.y;
 
         // منحنى طبيعي
         const dy  = Math.abs(sy - ey);
-        const c1y = sy - dy * 0.4;
-        const c2y = ey + dy * 0.4;
+        const c1y = sy - dy * 0.45;
+        const c2y = ey + dy * 0.45;
+
+        // تحديد السماكة بناءً على عدد الأبناء (الوزن)
+        let w = weight[cid] || 1;
+        let strokeW = Math.min(55, Math.max(4, w * 2.5)); 
+        
+        let strokeColor = strokeW > 18 ? "#3e2715" : "#6b3f18";
 
         svg += `<path
           class="tree-link"
           data-parent="${pid}"
           data-child="${cid}"
+          stroke="${strokeColor}"
+          stroke-width="${strokeW}"
           d="M${sx},${sy} C${sx},${c1y} ${ex},${c2y} ${ex},${ey}"
         />`;
       });
@@ -358,9 +376,11 @@ const Tree = (() => {
     const layout = _layout();
     _lastLayout  = layout;
     _positions   = layout.pos;
+    
     _renderNodes(layout.pos);
-    _renderLinks(layout.pos);
+    _renderLinks(layout); // تم تمرير الكائن كامل لتطبيق الجذع
     _fitCanvas(layout.pos);
+    
     // انتظر ريندر DOM ثم اضبط الزوم
     requestAnimationFrame(() => {
       _autoFit(layout.pos, layout.leafCount, layout.maxDepth);
