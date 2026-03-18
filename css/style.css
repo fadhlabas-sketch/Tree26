@@ -108,18 +108,9 @@ body {
   position: absolute; top: 0; left: 0;
   pointer-events: none; overflow: visible;
 }
-.tree-link {
-  fill: none;
-  stroke: var(--link-color);
-  stroke-width: 1.8;
-  transition: stroke 0.4s, stroke-width 0.4s;
-}
+
 /* رابط مسار الأصل */
-.tree-link.lineage-link {
-  stroke: var(--link-lineage);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 4px rgba(255,107,53,0.7));
-}
+
 
 /* العقد */
 .nodes-container {
@@ -354,8 +345,7 @@ body {
 .lineage-arrow { font-size:13px;color:#ff6b35;text-align:center;padding:1px 16px; }
 .btn-secondary { width:100%;padding:9px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-family:var(--font);font-size:.88rem;font-weight:600;cursor:pointer;transition:border-color .2s,color .2s;margin-top:12px; }
 .btn-secondary:hover { border-color:#e05c5c;color:#e05c5c; }
-.tree-link.lineage-link { stroke:#ff6b35!important;stroke-width:3!important;filter:drop-shadow(0 0 4px rgba(255,107,53,.7)); }
-.tree-node.lineage-node { border-color:#ff6b35!important;background:#3d1f0a!important;box-shadow:0 0 14px rgba(255,107,53,.45)!important; }
+
 
 /* ── تلميح النموذج ── */
 .form-hint {
@@ -608,83 +598,28 @@ body {
   text-align: center;
 }
 
-/* ══ عقدة الشخص — دائرة مع اسم تحتها ══ */
-.tree-node {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  cursor: pointer;
-  /* لا خلفية ولا border هنا — كل شيء في الـ avatar */
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0;
-  width: auto !important;
-  z-index: 2;
-  transition: transform 0.15s;
-}
-.tree-node:hover   { transform: scale(1.12); }
-.tree-node.highlighted .node-avatar {
-  box-shadow: 0 0 0 3px #fff, 0 0 18px var(--glow, #d4a843);
-  transform: scale(1.15);
-}
-.tree-node.lineage-node .node-avatar {
-  box-shadow: 0 0 0 3px #ff6b35, 0 0 18px rgba(255,107,53,.7);
-}
-.tree-node.long-pressed { transform: scale(1.18); }
+/* ══════════════════════════════════════════════════════════
+   منطقة الشجرة
+   ══════════════════════════════════════════════════════════ */
 
-.node-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 2.5px solid;        /* اللون يأتي من style inline */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 900;
-  transition: transform 0.15s, box-shadow 0.15s;
-  background: var(--node-bg);
-}
-
-.node-label {
-  margin-top: 5px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--text);
-  text-align: center;
-  width: 72px;
-  line-height: 1.2;
-  word-break: break-word;
-  white-space: normal;
-  text-shadow: 0 1px 4px rgba(0,0,0,.7);
-}
-
-/* ══ خطوط الأغصان ══ */
-.tree-link {
-  fill: none;
-  stroke-width: 2;
-  opacity: 0.6;
-  transition: stroke 0.4s, stroke-width 0.3s, opacity 0.3s;
-}
-.tree-link.lineage-link {
-  stroke: #ff6b35 !important;
-  stroke-width: 3.5 !important;
-  opacity: 1 !important;
-  filter: drop-shadow(0 0 5px rgba(255,107,53,.8));
-}
-
-/* ══ تحسينات إضافية للشجرة على الهاتف ══ */
-
-/* خلفية الشجرة — نقاط خفيفة تعطي إحساس الأرضية */
+/* خلفية خضراء طبيعية تدرجية */
 .tree-container {
-  background:
-    radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 28px 28px;
+  position: fixed;
+  top: 56px; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: linear-gradient(
+    to bottom,
+    #0d1f2d 0%,
+    #0f2d1a 40%,
+    #163d20 70%,
+    #1a4a25 100%
+  );
 }
+.tree-container.grabbing { cursor: grabbing; }
 
-/* wrapper */
+/* الـ wrapper يحمل SVG والعقد معاً */
 .tree-wrapper {
   position: absolute;
   top: 0; left: 0;
@@ -692,18 +627,109 @@ body {
   will-change: transform;
 }
 
-/* SVG الأغصان فوق كل شيء آخر */
+/* SVG الأغصان */
 .links-svg {
   position: absolute;
   top: 0; left: 0;
-  pointer-events: none;
   overflow: visible;
+  pointer-events: none;
   z-index: 1;
 }
 
-/* العقد فوق SVG */
+/* حاوية العقد */
 .nodes-container {
   position: absolute;
   top: 0; left: 0;
   z-index: 2;
 }
+
+/* ══════════════════════════════════════════════════════════
+   عقدة الشخص — بيضاوية بنية مع اسم أبيض
+   ══════════════════════════════════════════════════════════ */
+.tree-node {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  /* التدرج البني الخشبي */
+  background: radial-gradient(ellipse at 35% 35%,
+    #c4a882 0%,
+    #a07850 40%,
+    #7a5530 75%,
+    #5c3d1e 100%
+  );
+  border: 2px solid rgba(255,220,150,0.4);
+  box-shadow:
+    inset 0 2px 4px rgba(255,255,255,0.25),
+    inset 0 -2px 4px rgba(0,0,0,0.35),
+    0 3px 10px rgba(0,0,0,0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+  z-index: 2;
+  padding: 0 6px;
+}
+
+.tree-node:hover {
+  transform: scale(1.12);
+  box-shadow:
+    inset 0 2px 4px rgba(255,255,255,0.3),
+    inset 0 -2px 4px rgba(0,0,0,0.35),
+    0 4px 16px rgba(200,160,80,0.5);
+}
+
+.tree-node.highlighted {
+  border-color: #ffe066;
+  box-shadow:
+    inset 0 2px 4px rgba(255,255,255,0.3),
+    0 0 0 3px #ffe066,
+    0 0 20px rgba(255,224,102,0.6);
+  transform: scale(1.15);
+}
+
+.tree-node.lineage-node {
+  border-color: #ff6b35;
+  box-shadow:
+    inset 0 2px 4px rgba(255,255,255,0.2),
+    0 0 0 3px #ff6b35,
+    0 0 20px rgba(255,107,53,0.6);
+}
+
+/* نص الاسم داخل البيضاوية */
+.node-text {
+  font-family: var(--font);
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #fff;
+  text-align: center;
+  line-height: 1.2;
+  word-break: break-word;
+  white-space: normal;
+  text-shadow:
+    0 1px 3px rgba(0,0,0,0.8),
+    0 0 8px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════
+   الأغصان
+   ══════════════════════════════════════════════════════════ */
+.tree-link {
+  fill: none;
+  stroke: #5c3d1e;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.85;
+  transition: stroke 0.3s, stroke-width 0.3s;
+}
+
+.tree-link.lineage-link {
+  stroke: #ff6b35 !important;
+  stroke-width: 4 !important;
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 5px rgba(255,107,53,0.8));
+}
+
+/* ══════════════════════════════════════════════════════════
+   wrapper و layers الأساسية
+   ══════════════════════════════════════════════════════════ */
