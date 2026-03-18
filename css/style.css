@@ -626,3 +626,16 @@ body {
 #statsBtn:hover { border-color: var(--accent); background: var(--node-hover); }
 #refreshBtn:disabled { opacity: 0.6; cursor: wait; }
 .zoom-controls { display: none !important; }
+
+/* شارة وضع المدير في النماذج */
+.admin-badge {
+  background: linear-gradient(135deg, rgba(212,168,67,0.15), rgba(212,168,67,0.08));
+  border: 1px solid rgba(212,168,67,0.4);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.83rem;
+  color: var(--accent2);
+  font-weight: 700;
+  margin-bottom: 14px;
+  text-align: center;
+}
