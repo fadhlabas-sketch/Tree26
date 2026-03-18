@@ -11,10 +11,10 @@ const CONFIG = {
   SHEET_ID: '1Tiwmo70s2mtXRykEKnqRv_bHTIpp-sTQ-KwtS2xghLM',
 
   // رابط Google Apps Script بعد النشر
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxUVFeCVlF9UO-NMWCsuzyrkkelMdCwVvFJWrQuAPI4dpCikibVlupfdxvMuYch_SM/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxhXuUE7kn5bn0iN-9ENOxxDtC2fTwLF_VZQ74PpqPCHP9v4XWb_LFMPbApxBpgEWE/exec',
 
   // كلمة مرور لوحة الإدارة
-  ADMIN_PASSWORD: 'admin123',
+  ADMIN_PASSWORD: 'Ff1994',
 
   /**
    * ⚠️ مهم جداً للـ PWA على GitHub Pages
