@@ -104,12 +104,39 @@ const Sheets = (() => {
   /**
    * Reject an update-details request.
    */
+
+  // ── إضافة ابن مباشرة (أدمن) ──────────────────────────────────────────────
+  async function directAddChild({ parentId, childName, birthYear }) {
+    return _call({
+      action:    'directAddChild',
+      parentId,
+      childName,
+      birthYear: birthYear || '',
+    });
+  }
+
+  // ── تعديل عضو مباشرة (أدمن) ──────────────────────────────────────────────
+  async function directUpdateMember({ memberId, name, birthDate, phone, address, job, note }) {
+    return _call({
+      action:    'directUpdateMember',
+      memberId,
+      name:      name      || '',
+      birthDate: birthDate || '',
+      phone:     phone     || '',
+      address:   address   || '',
+      job:       job       || '',
+      note:      note      || '',
+    });
+  }
+
   async function rejectUpdate(requestId) {
     return _call({ action: 'rejectUpdate', requestId });
   }
 
   return {
     getMembers,
+    directAddChild,
+    directUpdateMember,
     submitAddChild,
     submitUpdateDetails,
     getPendingRequests,
