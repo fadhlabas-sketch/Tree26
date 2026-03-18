@@ -4,18 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>شجرة العائلة</title>
-
-  <!-- PWA -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#1a1a2e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="شجرة العائلة" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-
-  <!-- خط عربي -->
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
-
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -38,8 +33,14 @@
 
   <!-- ===== منطقة الشجرة ===== -->
   <div class="tree-container" id="treeContainer">
-    <svg id="linksSvg" class="links-svg"></svg>
-    <div id="nodesContainer" class="nodes-container"></div>
+    <!--
+      treeWrapper هو الحل الجوهري لمشكلة انفصال الخطوط عند الزوم:
+      SVG والعقد داخل wrapper واحد يتلقى transform واحداً
+    -->
+    <div id="treeWrapper" class="tree-wrapper">
+      <svg id="linksSvg" class="links-svg"></svg>
+      <div id="nodesContainer" class="nodes-container"></div>
+    </div>
   </div>
 
   <!-- ===== شاشة التحميل ===== -->
@@ -50,20 +51,23 @@
     </div>
   </div>
 
-  <!-- ===== لوحة التفاصيل الجانبية ===== -->
+  <!-- ===== لوحة التفاصيل ===== -->
   <div class="side-panel" id="detailsPanel">
     <button class="panel-close" id="closeDetails">✕</button>
     <div class="panel-content" id="detailsContent"></div>
   </div>
   <div class="overlay" id="panelOverlay"></div>
 
-  <!-- ===== القائمة المنبثقة (ضغط مطوّل) ===== -->
+  <!-- ===== القائمة المنبثقة (3 خيارات) ===== -->
   <div class="context-menu" id="contextMenu">
     <div class="ctx-item" id="ctxAddChild">
       <span class="ctx-icon">👶</span> إضافة ابن / ابنة
     </div>
     <div class="ctx-item" id="ctxAddDetails">
       <span class="ctx-icon">✏️</span> إضافة / تعديل البيانات
+    </div>
+    <div class="ctx-item" id="ctxShowLineage">
+      <span class="ctx-icon">🔗</span> إظهار الأصل
     </div>
   </div>
 
@@ -98,10 +102,9 @@
     </div>
   </div>
 
-  <!-- ===== إشعار منبثق ===== -->
+  <!-- ===== إشعار ===== -->
   <div class="toast" id="toast"></div>
 
-  <!-- السكريبتات -->
   <script src="js/config.js"></script>
   <script src="js/sheets.js"></script>
   <script src="js/tree.js"></script>
