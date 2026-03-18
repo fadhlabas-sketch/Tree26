@@ -1,54 +1,54 @@
 /**
  * admin.js
  * ========
- * Admin panel: login, view pending requests, approve/reject.
+ * - تسجيل الدخول كأدمن
+ * - الأدمن يضيف أبناء ويعدّل البيانات مباشرة بدون موافقة
+ * - الأدمن يرى الطلبات المعلّقة ويوافق أو يرفض
  */
 
 const Admin = (() => {
 
   let _authenticated = false;
-  const _processing = new Set();   // يمنع تكرار الضغط على نفس الطلب
+  const _processing  = new Set();
 
-  // ── DOM refs ──────────────────────────────────────────────────────────────
-  const backdrop    = () => document.getElementById('adminBackdrop');
-  const loginDiv    = () => document.getElementById('adminLogin');
-  const contentDiv  = () => document.getElementById('adminContent');
-  const tabChildren = () => document.getElementById('adminTabChildren');
-  const tabUpdates  = () => document.getElementById('adminTabUpdates');
+  const $ = id => document.getElementById(id);
 
-  // ── Open / Close ──────────────────────────────────────────────────────────
+  // ── هل المستخدم أدمن؟ (تستخدمها interactions.js) ────────────────────────
+  function isAdmin() { return _authenticated; }
+
+  // ── فتح / إغلاق ──────────────────────────────────────────────────────────
   function _open() {
-    backdrop().classList.add('open');
+    $('adminBackdrop').classList.add('open');
     if (!_authenticated) {
-      loginDiv().style.display = '';
-      contentDiv().style.display = 'none';
+      $('adminLogin').style.display   = '';
+      $('adminContent').style.display = 'none';
     } else {
       _loadData();
     }
   }
 
   function _close() {
-    backdrop().classList.remove('open');
+    $('adminBackdrop').classList.remove('open');
   }
 
-  // ── Login ─────────────────────────────────────────────────────────────────
+  // ── تسجيل الدخول ─────────────────────────────────────────────────────────
   function _login() {
-    const pw = document.getElementById('adminPassword').value;
+    const pw = $('adminPassword').value;
     if (pw === CONFIG.ADMIN_PASSWORD) {
       _authenticated = true;
-      loginDiv().style.display = 'none';
-      contentDiv().style.display = '';
+      $('adminLogin').style.display   = 'none';
+      $('adminContent').style.display = '';
       _loadData();
+      Interactions.showToast('✅ مرحباً بك يا مدير');
     } else {
       Interactions.showToast('❌ كلمة المرور غير صحيحة');
     }
   }
 
-  // ── Load pending data ─────────────────────────────────────────────────────
+  // ── تحميل الطلبات المعلّقة ────────────────────────────────────────────────
   async function _loadData() {
-    tabChildren().innerHTML = '<p class="empty-state">جاري التحميل…</p>';
-    tabUpdates().innerHTML  = '<p class="empty-state">جاري التحميل…</p>';
-
+    $('adminTabChildren').innerHTML = '<p class="empty-state">جاري التحميل…</p>';
+    $('adminTabUpdates').innerHTML  = '<p class="empty-state">جاري التحميل…</p>';
     try {
       const [requests, updates] = await Promise.all([
         Sheets.getPendingRequests(),
@@ -57,18 +57,18 @@ const Admin = (() => {
       _renderChildRequests(requests.filter(r => r.status === 'pending'));
       _renderUpdateRequests(updates.filter(r => r.status === 'pending'));
     } catch (e) {
-      tabChildren().innerHTML = `<p class="empty-state">خطأ: ${e.message}</p>`;
-      tabUpdates().innerHTML  = `<p class="empty-state">خطأ: ${e.message}</p>`;
+      $('adminTabChildren').innerHTML = `<p class="empty-state">خطأ: ${e.message}</p>`;
+      $('adminTabUpdates').innerHTML  = `<p class="empty-state">خطأ: ${e.message}</p>`;
     }
   }
 
-  // ── Render add-child requests ─────────────────────────────────────────────
+  // ── عرض طلبات إضافة الأبناء ──────────────────────────────────────────────
   function _renderChildRequests(requests) {
     if (requests.length === 0) {
-      tabChildren().innerHTML = '<p class="empty-state">No pending add-child requests.</p>';
+      $('adminTabChildren').innerHTML = '<p class="empty-state">لا توجد طلبات معلّقة.</p>';
       return;
     }
-    tabChildren().innerHTML = requests.map(r => {
+    $('adminTabChildren').innerHTML = requests.map(r => {
       const parent = Tree.getMember(r.parent_id);
       return `
         <div class="request-card" id="rc_${r.request_id}">
@@ -82,70 +82,69 @@ const Admin = (() => {
             <button class="btn-approve" onclick="Admin.approveChild('${r.request_id}')">✓ موافقة</button>
             <button class="btn-reject"  onclick="Admin.rejectChild('${r.request_id}')">✕ رفض</button>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   }
 
-  // ── Render update-details requests ───────────────────────────────────────
+  // ── عرض طلبات تعديل البيانات ─────────────────────────────────────────────
   function _renderUpdateRequests(updates) {
     if (updates.length === 0) {
-      tabUpdates().innerHTML = '<p class="empty-state">No pending update requests.</p>';
+      $('adminTabUpdates').innerHTML = '<p class="empty-state">لا توجد طلبات تعديل معلّقة.</p>';
       return;
     }
-    tabUpdates().innerHTML = updates.map(u => `
+    $('adminTabUpdates').innerHTML = updates.map(u => `
       <div class="request-card" id="ru_${u.request_id}">
-        <div class="request-card-title">Update: <strong>${u.member_name}</strong></div>
+        <div class="request-card-title">تعديل: <strong>${u.member_name}</strong></div>
         <div class="request-meta">
           ${u.birth_date ? `سنة الميلاد: ${u.birth_date}<br/>` : ''}
-          ${u.phone      ? `الهاتف: ${u.phone}<br/>` : ''}
-          ${u.address    ? `العنوان: ${u.address}<br/>` : ''}
-          ${u.job        ? `المهنة: ${u.job}<br/>` : ''}
-          ${u.note       ? `ملاحظة: ${u.note}<br/>` : ''}
+          ${u.phone      ? `الهاتف: ${u.phone}<br/>`            : ''}
+          ${u.address    ? `العنوان: ${u.address}<br/>`         : ''}
+          ${u.job        ? `المهنة: ${u.job}<br/>`              : ''}
+          ${u.note       ? `ملاحظة: ${u.note}<br/>`             : ''}
           مقدّم الطلب: ${u.submitted_by || '—'}
         </div>
         <div class="request-actions">
           <button class="btn-approve" onclick="Admin.approveUpdate('${u.request_id}')">✓ موافقة</button>
           <button class="btn-reject"  onclick="Admin.rejectUpdate('${u.request_id}')">✕ رفض</button>
         </div>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
-  // ── Approve / Reject handlers ─────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  //  إضافة ابن مباشرة (للأدمن بدون موافقة)
+  // ══════════════════════════════════════════════════════════════════════════
+  async function directAddChild(parentId, childName, birthYear) {
+    return Sheets.directAddChild({ parentId, childName, birthYear });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  تعديل بيانات مباشرة (للأدمن بدون موافقة)
+  // ══════════════════════════════════════════════════════════════════════════
+  async function directUpdateMember(memberId, data) {
+    return Sheets.directUpdateMember({ memberId, ...data });
+  }
+
+  // ── موافقة / رفض طلبات المستخدمين ────────────────────────────────────────
   async function approveChild(requestId) {
-    if (_processing.has(requestId)) return;   // منع التكرار
+    if (_processing.has(requestId)) return;
     _processing.add(requestId);
-
-    // تعطيل الزر فوراً
-    const card = document.getElementById(`rc_${requestId}`);
-    if (card) {
-      card.querySelectorAll('button').forEach(b => {
-        b.disabled = true;
-        b.style.opacity = '0.5';
-      });
-    }
-
+    const card = $(`rc_${requestId}`);
+    if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
     try {
       await Sheets.approveAddChild(requestId);
       card?.remove();
-      Interactions.showToast('✅ تمت إضافة الابن إلى الشجرة');
+      Interactions.showToast('✅ تمت إضافة الابن');
       App.reload();
     } catch (e) {
       Interactions.showToast('❌ ' + e.message);
-      // إعادة تفعيل الأزرار عند الخطأ
-      if (card) card.querySelectorAll('button').forEach(b => {
-        b.disabled = false; b.style.opacity = '';
-      });
-    } finally {
-      _processing.delete(requestId);
-    }
+      if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
+    } finally { _processing.delete(requestId); }
   }
 
   async function rejectChild(requestId) {
     if (_processing.has(requestId)) return;
     _processing.add(requestId);
-    const card = document.getElementById(`rc_${requestId}`);
+    const card = $(`rc_${requestId}`);
     if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
     try {
       await Sheets.rejectRequest(requestId, 'pending_requests');
@@ -154,15 +153,13 @@ const Admin = (() => {
     } catch (e) {
       Interactions.showToast('❌ ' + e.message);
       if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
-    } finally {
-      _processing.delete(requestId);
-    }
+    } finally { _processing.delete(requestId); }
   }
 
   async function approveUpdate(requestId) {
     if (_processing.has(requestId)) return;
     _processing.add(requestId);
-    const card = document.getElementById(`ru_${requestId}`);
+    const card = $(`ru_${requestId}`);
     if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
     try {
       await Sheets.approveUpdate(requestId);
@@ -172,58 +169,45 @@ const Admin = (() => {
     } catch (e) {
       Interactions.showToast('❌ ' + e.message);
       if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
-    } finally {
-      _processing.delete(requestId);
-    }
+    } finally { _processing.delete(requestId); }
   }
 
   async function rejectUpdate(requestId) {
     if (_processing.has(requestId)) return;
     _processing.add(requestId);
-    const card = document.getElementById(`ru_${requestId}`);
+    const card = $(`ru_${requestId}`);
     if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
     try {
       await Sheets.rejectUpdate(requestId);
       card?.remove();
-      Interactions.showToast('تم رفض طلب التحديث');
+      Interactions.showToast('تم رفض الطلب');
     } catch (e) {
       Interactions.showToast('❌ ' + e.message);
       if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
-    } finally {
-      _processing.delete(requestId);
-    }
+    } finally { _processing.delete(requestId); }
   }
 
-  // ── Tab switching ─────────────────────────────────────────────────────────
+  // ── تبديل التبويبات ───────────────────────────────────────────────────────
   function _initTabs() {
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const tab = btn.dataset.tab;
-        document.getElementById('adminTabChildren').style.display = tab === 'children' ? '' : 'none';
-        document.getElementById('adminTabUpdates').style.display  = tab === 'updates'  ? '' : 'none';
+        $('adminTabChildren').style.display = tab === 'children' ? '' : 'none';
+        $('adminTabUpdates').style.display  = tab === 'updates'  ? '' : 'none';
       });
     });
   }
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   function init() {
-    document.getElementById('openAdmin').onclick  = _open;
-    document.getElementById('closeAdmin').onclick = _close;
-    document.getElementById('adminLoginBtn').onclick = _login;
-
-    document.getElementById('adminPassword').addEventListener('keydown', e => {
-      if (e.key === 'Enter') _login();
-    });
-
-    // Close on backdrop click
-    backdrop().addEventListener('click', e => {
-      if (e.target === backdrop()) _close();
-    });
-
+    $('openAdmin').onclick     = _open;
+    $('closeAdmin').onclick    = _close;
+    $('adminLoginBtn').onclick = _login;
+    $('adminPassword').addEventListener('keydown', e => { if (e.key === 'Enter') _login(); });
+    $('adminBackdrop').addEventListener('click', e => { if (e.target === $('adminBackdrop')) _close(); });
     _initTabs();
   }
 
-  return { init, approveChild, rejectChild, approveUpdate, rejectUpdate };
+  return { init, isAdmin, directAddChild, directUpdateMember, approveChild, rejectChild, approveUpdate, rejectUpdate };
 })();
