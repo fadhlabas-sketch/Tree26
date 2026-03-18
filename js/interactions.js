@@ -115,9 +115,16 @@ const Interactions = (() => {
   //  نموذج إضافة ابن
   // ════════════════════════════════════════════════════════
   function _showAddChildForm(parentId) {
-    const parent = Tree.getMember(parentId);
+    const parent   = Tree.getMember(parentId);
+    const isAdmin  = Admin.isAdmin();
+    const btnLabel = isAdmin ? '✅ إضافة مباشرة' : 'إرسال الطلب';
+    const note     = isAdmin
+      ? '<p class="admin-badge">🔑 وضع المدير — الإضافة فورية</p>'
+      : '';
+
     _openModal(`
       <div class="modal-title">👶 إضافة ابن / ابنة</div>
+      ${note}
       <p class="parent-info">إضافة إلى: <strong>${parent?.name || parentId}</strong></p>
       <div class="form-group">
         <label class="form-label">الاسم (مقطع واحد فقط) <span class="required-star">*</span></label>
@@ -129,11 +136,11 @@ const Interactions = (() => {
         <input class="form-input" id="fc_birth" type="number" placeholder="مثال: 1990"
           min="1900" max="2025" style="width:140px" />
       </div>
-      <div class="form-group">
+      ${!isAdmin ? `<div class="form-group">
         <label class="form-label">اسمك (اختياري)</label>
         <input class="form-input" id="fc_by" type="text" placeholder="من قدّم هذا الطلب؟" />
-      </div>
-      <button class="btn-primary" id="fc_submit">إرسال الطلب</button>
+      </div>` : ''}
+      <button class="btn-primary" id="fc_submit">${btnLabel}</button>
       <p class="success-msg" id="fc_msg"></p>
     `);
 
@@ -142,21 +149,30 @@ const Interactions = (() => {
       if (!name) { showToast('⚠️ الاسم مطلوب'); return; }
       if (/\s/.test(name)) { showToast('⚠️ أدخل مقطعاً واحداً فقط — بدون مسافة'); return; }
       const btn = $('fc_submit');
-      btn.textContent = 'جاري الإرسال…';
-      btn.disabled = true;
+      btn.textContent = 'جاري…';
+      btn.disabled    = true;
       try {
-        await Sheets.submitAddChild({
-          parentId,
-          childName:   name,
-          birthDate:   $('fc_birth').value,
-          submittedBy: $('fc_by').value,
-        });
-        $('fc_msg').textContent = '✅ تم إرسال الطلب! سيظهر بعد موافقة المدير.';
-        btn.style.display = 'none';
+        if (isAdmin) {
+          // أدمن: إضافة مباشرة فورية
+          await Admin.directAddChild(parentId, name, $('fc_birth').value);
+          $('fc_msg').textContent = '✅ تمت الإضافة مباشرة!';
+          btn.style.display = 'none';
+          setTimeout(() => { _closeModal(); App.reload(); }, 900);
+        } else {
+          // مستخدم عادي: إرسال طلب
+          await Sheets.submitAddChild({
+            parentId,
+            childName:   name,
+            birthDate:   $('fc_birth').value,
+            submittedBy: $('fc_by')?.value || '',
+          });
+          $('fc_msg').textContent = '✅ تم إرسال الطلب! سيظهر بعد موافقة المدير.';
+          btn.style.display = 'none';
+        }
       } catch (e) {
         showToast('❌ خطأ: ' + e.message);
-        btn.textContent = 'إرسال الطلب';
-        btn.disabled = false;
+        btn.textContent = btnLabel;
+        btn.disabled    = false;
       }
     };
   }
@@ -165,10 +181,21 @@ const Interactions = (() => {
   //  نموذج تعديل البيانات
   // ════════════════════════════════════════════════════════
   function _showAddDetailsForm(memberId) {
-    const m = Tree.getMember(memberId) || {};
+    const m       = Tree.getMember(memberId) || {};
+    const isAdmin = Admin.isAdmin();
+    const btnLabel = isAdmin ? '✅ حفظ مباشر' : 'إرسال التحديث';
+    const note     = isAdmin
+      ? '<p class="admin-badge">🔑 وضع المدير — الحفظ فوري</p>'
+      : '';
+
     _openModal(`
       <div class="modal-title">✏️ إضافة / تعديل البيانات</div>
+      ${note}
       <p class="parent-info">تعديل بيانات: <strong>${m.name || memberId}</strong></p>
+      ${isAdmin ? `<div class="form-group">
+        <label class="form-label">الاسم <span class="required-star">*</span></label>
+        <input class="form-input" id="fd_name" type="text" value="${m.name || ''}" placeholder="اسم الشخص" />
+      </div>` : ''}
       <div class="form-group">
         <label class="form-label">سنة الميلاد</label>
         <input class="form-input" id="fd_birth" type="number" placeholder="مثال: 1985"
@@ -191,35 +218,53 @@ const Interactions = (() => {
         <label class="form-label">ملاحظة</label>
         <textarea class="form-textarea" id="fd_note" placeholder="أي ملاحظة…">${m.note || ''}</textarea>
       </div>
-      <div class="form-group">
+      ${!isAdmin ? `<div class="form-group">
         <label class="form-label">اسمك (اختياري)</label>
         <input class="form-input" id="fd_by" type="text" placeholder="من قدّم هذا الطلب؟" />
-      </div>
-      <button class="btn-primary" id="fd_submit">إرسال التحديث</button>
+      </div>` : ''}
+      <button class="btn-primary" id="fd_submit">${btnLabel}</button>
       <p class="success-msg" id="fd_msg"></p>
     `);
 
     $('fd_submit').onclick = async () => {
       const btn = $('fd_submit');
-      btn.textContent = 'جاري الإرسال…';
-      btn.disabled = true;
+      btn.textContent = 'جاري…';
+      btn.disabled    = true;
       try {
-        await Sheets.submitUpdateDetails({
-          memberId,
-          memberName:  m.name,
-          birthDate:   $('fd_birth').value,
-          phone:       $('fd_phone').value,
-          address:     $('fd_address').value,
-          job:         $('fd_job').value,
-          note:        $('fd_note').value,
-          submittedBy: $('fd_by').value,
-        });
-        $('fd_msg').textContent = '✅ تم إرسال التحديث! سيظهر بعد موافقة المدير.';
-        btn.style.display = 'none';
+        if (isAdmin) {
+          // أدمن: حفظ مباشر فوري
+          const newName = $('fd_name')?.value.trim();
+          if (!newName) { showToast('⚠️ الاسم مطلوب'); btn.textContent = btnLabel; btn.disabled = false; return; }
+          await Admin.directUpdateMember(memberId, {
+            name:      newName,
+            birthDate: $('fd_birth').value,
+            phone:     $('fd_phone').value,
+            address:   $('fd_address').value,
+            job:       $('fd_job').value,
+            note:      $('fd_note').value,
+          });
+          $('fd_msg').textContent = '✅ تم الحفظ مباشرة!';
+          btn.style.display = 'none';
+          setTimeout(() => { _closeModal(); App.reload(); }, 900);
+        } else {
+          // مستخدم عادي: إرسال طلب
+          await Sheets.submitUpdateDetails({
+            memberId,
+            memberName:  m.name,
+            birthDate:   $('fd_birth').value,
+            phone:       $('fd_phone').value,
+            address:     $('fd_address').value,
+            job:         $('fd_job').value,
+            note:        $('fd_note').value,
+            submittedBy: $('fd_by')?.value || '',
+          });
+          $('fd_msg').textContent = '✅ تم إرسال التحديث! سيظهر بعد موافقة المدير.';
+          btn.style.display = 'none';
+        }
       } catch (e) {
         showToast('❌ خطأ: ' + e.message);
-        btn.textContent = 'إرسال التحديث';
-        btn.disabled = false;
+        btn.textContent = btnLabel;
+        btn.disabled    = false;
       }
     };
   }
