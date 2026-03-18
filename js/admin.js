@@ -40,14 +40,14 @@ const Admin = (() => {
       contentDiv().style.display = '';
       _loadData();
     } else {
-      Interactions.showToast('❌ Incorrect password');
+      Interactions.showToast('❌ كلمة المرور غير صحيحة');
     }
   }
 
   // ── Load pending data ─────────────────────────────────────────────────────
   async function _loadData() {
-    tabChildren().innerHTML = '<p class="empty-state">Loading…</p>';
-    tabUpdates().innerHTML  = '<p class="empty-state">Loading…</p>';
+    tabChildren().innerHTML = '<p class="empty-state">جاري التحميل…</p>';
+    tabUpdates().innerHTML  = '<p class="empty-state">جاري التحميل…</p>';
 
     try {
       const [requests, updates] = await Promise.all([
@@ -57,8 +57,8 @@ const Admin = (() => {
       _renderChildRequests(requests.filter(r => r.status === 'pending'));
       _renderUpdateRequests(updates.filter(r => r.status === 'pending'));
     } catch (e) {
-      tabChildren().innerHTML = `<p class="empty-state">Error: ${e.message}</p>`;
-      tabUpdates().innerHTML  = `<p class="empty-state">Error: ${e.message}</p>`;
+      tabChildren().innerHTML = `<p class="empty-state">خطأ: ${e.message}</p>`;
+      tabUpdates().innerHTML  = `<p class="empty-state">خطأ: ${e.message}</p>`;
     }
   }
 
@@ -72,15 +72,15 @@ const Admin = (() => {
       const parent = Tree.getMember(r.parent_id);
       return `
         <div class="request-card" id="rc_${r.request_id}">
-          <div class="request-card-title">Add Child: <strong>${r.child_name}</strong></div>
+          <div class="request-card-title">إضافة: <strong>${r.child_name}</strong></div>
           <div class="request-meta">
-            Parent: ${parent ? parent.name : r.parent_id}<br/>
-            Birth Date: ${r.birth_date || '—'}<br/>
-            Submitted by: ${r.submitted_by || '—'}
+            الأب/الأم: ${parent ? parent.name : r.parent_id}<br/>
+            سنة الميلاد: ${r.birth_date || '—'}<br/>
+            مقدّم الطلب: ${r.submitted_by || '—'}
           </div>
           <div class="request-actions">
-            <button class="btn-approve" onclick="Admin.approveChild('${r.request_id}')">✓ Approve</button>
-            <button class="btn-reject"  onclick="Admin.rejectChild('${r.request_id}')">✕ Reject</button>
+            <button class="btn-approve" onclick="Admin.approveChild('${r.request_id}')">✓ موافقة</button>
+            <button class="btn-reject"  onclick="Admin.rejectChild('${r.request_id}')">✕ رفض</button>
           </div>
         </div>
       `;
@@ -97,16 +97,16 @@ const Admin = (() => {
       <div class="request-card" id="ru_${u.request_id}">
         <div class="request-card-title">Update: <strong>${u.member_name}</strong></div>
         <div class="request-meta">
-          ${u.birth_date ? `Birth Date: ${u.birth_date}<br/>` : ''}
-          ${u.phone      ? `Phone: ${u.phone}<br/>` : ''}
-          ${u.address    ? `Address: ${u.address}<br/>` : ''}
-          ${u.job        ? `Job: ${u.job}<br/>` : ''}
-          ${u.note       ? `Note: ${u.note}<br/>` : ''}
-          Submitted by: ${u.submitted_by || '—'}
+          ${u.birth_date ? `سنة الميلاد: ${u.birth_date}<br/>` : ''}
+          ${u.phone      ? `الهاتف: ${u.phone}<br/>` : ''}
+          ${u.address    ? `العنوان: ${u.address}<br/>` : ''}
+          ${u.job        ? `المهنة: ${u.job}<br/>` : ''}
+          ${u.note       ? `ملاحظة: ${u.note}<br/>` : ''}
+          مقدّم الطلب: ${u.submitted_by || '—'}
         </div>
         <div class="request-actions">
-          <button class="btn-approve" onclick="Admin.approveUpdate('${u.request_id}')">✓ Approve</button>
-          <button class="btn-reject"  onclick="Admin.rejectUpdate('${u.request_id}')">✕ Reject</button>
+          <button class="btn-approve" onclick="Admin.approveUpdate('${u.request_id}')">✓ موافقة</button>
+          <button class="btn-reject"  onclick="Admin.rejectUpdate('${u.request_id}')">✕ رفض</button>
         </div>
       </div>
     `).join('');
