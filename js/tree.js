@@ -226,19 +226,20 @@ const Tree = (() => {
       _applyTransform();
     }, { passive: true });
 
-    // أزرار التكبير
-    const zoomDiv = document.createElement('div');
-    zoomDiv.className = 'zoom-controls';
-    zoomDiv.innerHTML = `
-      <button class="zoom-btn" id="zoomIn"    title="تكبير">+</button>
-      <button class="zoom-btn" id="zoomOut"   title="تصغير">−</button>
-      <button class="zoom-btn" id="zoomReset" title="إعادة ضبط">⌂</button>
-    `;
-    document.body.appendChild(zoomDiv);
+    // زر تحديث البيانات (الوحيد في الأسفل)
+    const refreshDiv = document.createElement('div');
+    refreshDiv.className = 'refresh-control';
+    refreshDiv.innerHTML = `<button class="refresh-btn" id="refreshBtn" title="تحديث الشجرة">🔄 تحديث</button>`;
+    document.body.appendChild(refreshDiv);
 
-    document.getElementById('zoomIn').onclick    = () => { _zoom = Math.min(2.5, _zoom * 1.2); _applyTransform(); };
-    document.getElementById('zoomOut').onclick   = () => { _zoom = Math.max(0.15, _zoom * 0.8); _applyTransform(); };
-    document.getElementById('zoomReset').onclick = () => centreOnRoot();
+    document.getElementById('refreshBtn').onclick = async () => {
+      const btn = document.getElementById('refreshBtn');
+      btn.textContent = '⏳ جاري التحديث…';
+      btn.disabled = true;
+      await App.reload();
+      btn.textContent = '🔄 تحديث';
+      btn.disabled = false;
+    };
   }
 
   // ── التمركز على عقدة ─────────────────────────────────────────────────────
@@ -336,4 +337,3 @@ const Tree = (() => {
     initPanZoom: _initPanZoom,
   };
 })();
- 
