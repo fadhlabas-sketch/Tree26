@@ -65,7 +65,7 @@ const Interactions = (() => {
     if (!m) return;
 
     const fields = [
-      { icon: '📅', label: 'تاريخ الميلاد', value: m.birth_date },
+      { icon: '📅', label: 'سنة الميلاد', value: m.birth_date ? String(m.birth_date).replace(/-.*/, '') : '' },
       { icon: '📞', label: 'رقم الهاتف',    value: m.phone      },
       { icon: '🏠', label: 'العنوان',        value: m.address    },
       { icon: '💼', label: 'المهنة',         value: m.job        },
@@ -120,12 +120,14 @@ const Interactions = (() => {
       <div class="modal-title">👶 إضافة ابن / ابنة</div>
       <p class="parent-info">إضافة إلى: <strong>${parent?.name || parentId}</strong></p>
       <div class="form-group">
-        <label class="form-label">الاسم الكامل <span class="required-star">*</span></label>
-        <input class="form-input" id="fc_name" type="text" placeholder="أدخل الاسم الكامل" />
+        <label class="form-label">الاسم (مقطع واحد فقط) <span class="required-star">*</span></label>
+        <input class="form-input" id="fc_name" type="text" placeholder="مثال: محمد" maxlength="30" />
+        <small class="form-hint">أدخل الاسم الأول فقط بدون لقب</small>
       </div>
       <div class="form-group">
-        <label class="form-label">تاريخ الميلاد</label>
-        <input class="form-input" id="fc_birth" type="date" />
+        <label class="form-label">سنة الميلاد</label>
+        <input class="form-input" id="fc_birth" type="number" placeholder="مثال: 1990"
+          min="1900" max="2025" style="width:140px" />
       </div>
       <div class="form-group">
         <label class="form-label">اسمك (اختياري)</label>
@@ -137,7 +139,8 @@ const Interactions = (() => {
 
     $('fc_submit').onclick = async () => {
       const name = $('fc_name').value.trim();
-      if (!name) { showToast('⚠️ الاسم الكامل مطلوب'); return; }
+      if (!name) { showToast('⚠️ الاسم مطلوب'); return; }
+      if (/\s/.test(name)) { showToast('⚠️ أدخل مقطعاً واحداً فقط — بدون مسافة'); return; }
       const btn = $('fc_submit');
       btn.textContent = 'جاري الإرسال…';
       btn.disabled = true;
@@ -167,8 +170,10 @@ const Interactions = (() => {
       <div class="modal-title">✏️ إضافة / تعديل البيانات</div>
       <p class="parent-info">تعديل بيانات: <strong>${m.name || memberId}</strong></p>
       <div class="form-group">
-        <label class="form-label">تاريخ الميلاد</label>
-        <input class="form-input" id="fd_birth" type="date" value="${m.birth_date || ''}" />
+        <label class="form-label">سنة الميلاد</label>
+        <input class="form-input" id="fd_birth" type="number" placeholder="مثال: 1985"
+          min="1900" max="2025" style="width:140px"
+          value="${m.birth_date ? String(m.birth_date).replace(/-.*/, '') : ''}" />
       </div>
       <div class="form-group">
         <label class="form-label">رقم الهاتف</label>
@@ -380,4 +385,3 @@ const Interactions = (() => {
 
   return { init, attachAll, showToast };
 })();
- 
