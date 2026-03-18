@@ -37,8 +37,11 @@
 
   <!-- ===== TREE CANVAS AREA ===== -->
   <div class="tree-container" id="treeContainer">
-    <svg id="linksSvg" class="links-svg"></svg>
-    <div id="nodesContainer" class="nodes-container"></div>
+    <!-- treeWrapper: SVG والعقد في حاوية واحدة ← يحل انفصال الخطوط عند الزوم -->
+    <div id="treeWrapper" class="tree-wrapper">
+      <svg id="linksSvg" class="links-svg"></svg>
+      <div id="nodesContainer" class="nodes-container"></div>
+    </div>
   </div>
 
   <!-- ===== LOADING OVERLAY ===== -->
