@@ -226,20 +226,25 @@ const Tree = (() => {
       _applyTransform();
     }, { passive: true });
 
-    // زر تحديث البيانات (الوحيد في الأسفل)
-    const refreshDiv = document.createElement('div');
-    refreshDiv.className = 'refresh-control';
-    refreshDiv.innerHTML = `<button class="refresh-btn" id="refreshBtn" title="تحديث الشجرة">🔄 تحديث</button>`;
-    document.body.appendChild(refreshDiv);
+    // أزرار الأسفل: تحديث + إحصائيات
+    const bottomDiv = document.createElement('div');
+    bottomDiv.className = 'bottom-controls';
+    bottomDiv.innerHTML = `
+      <button class="bottom-btn" id="refreshBtn">🔄 تحديث</button>
+      <button class="bottom-btn" id="statsBtn">📊 إحصائيات</button>
+    `;
+    document.body.appendChild(bottomDiv);
 
     document.getElementById('refreshBtn').onclick = async () => {
       const btn = document.getElementById('refreshBtn');
-      btn.textContent = '⏳ جاري التحديث…';
+      btn.textContent = '⏳ جاري…';
       btn.disabled = true;
       await App.reload();
       btn.textContent = '🔄 تحديث';
       btn.disabled = false;
     };
+
+    document.getElementById('statsBtn').onclick = () => _showStats();
   }
 
   // ── التمركز على عقدة ─────────────────────────────────────────────────────
@@ -318,6 +323,72 @@ const Tree = (() => {
     _renderLinks(members, _positions);
     _fitCanvas(_positions);
     centreOnRoot();
+  }
+
+
+  // ── الإحصائيات ────────────────────────────────────────────────────────────
+
+
+
+  // ════════════════════════════════════════════════════════
+  //  إحصائيات الشجرة
+  // ════════════════════════════════════════════════════════
+  function _showStats() {
+    const members = _members;
+    const total   = members.length;
+
+    // حساب أكثر الأسماء تكراراً (المقطع الأول من كل اسم)
+    const freq = {};
+    members.forEach(m => {
+      const first = (m.name || '').split(/\s+/)[0].trim();
+      if (first) freq[first] = (freq[first] || 0) + 1;
+    });
+
+    // ترتيب تنازلي وأخذ أعلى 3
+    const top3 = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    // إنشاء نافذة الإحصائيات
+    const backdrop = document.createElement('div');
+    backdrop.className = 'stats-backdrop';
+    backdrop.innerHTML = `
+      <div class="stats-box">
+        <button class="stats-close" id="statsClose">✕</button>
+
+        <div class="stats-header">📊 إحصائيات الشجرة</div>
+
+        <div class="stats-card">
+          <div class="stats-number">${total}</div>
+          <div class="stats-label">إجمالي أفراد العائلة</div>
+        </div>
+
+        <div class="stats-section-title">أكثر الأسماء تكراراً</div>
+        <div class="stats-names">
+          ${top3.map(([ name, count ], i) => `
+            <div class="stats-name-row">
+              <span class="stats-rank">${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+              <span class="stats-name-text">${name}</span>
+              <span class="stats-count">${count} مرة</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="stats-footer">
+          تم إنشاء هذا البرنامج من قبل<br/>
+          <strong>فضل عباس زينل</strong><br/>
+          <a href="tel:07501377753" class="stats-phone">📞 07501377753</a>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(backdrop);
+
+    // إغلاق عند الضغط على X أو خارج النافذة
+    document.getElementById('statsClose').onclick = () => backdrop.remove();
+    backdrop.addEventListener('click', e => {
+      if (e.target === backdrop) backdrop.remove();
+    });
   }
 
   function getMember(id) { return _nodeMap[id]; }
