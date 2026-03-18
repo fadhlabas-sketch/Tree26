@@ -226,15 +226,7 @@ const Tree = (() => {
       _applyTransform();
     }, { passive: true });
 
-    // أزرار الأسفل: تحديث + إحصائيات
-    const bottomDiv = document.createElement('div');
-    bottomDiv.className = 'bottom-controls';
-    bottomDiv.innerHTML = `
-      <button class="bottom-btn" id="refreshBtn">🔄 تحديث</button>
-      <button class="bottom-btn" id="statsBtn">📊 إحصائيات</button>
-    `;
-    document.body.appendChild(bottomDiv);
-
+    // ربط أزرار الأسفل (موجودة في HTML)
     document.getElementById('refreshBtn').onclick = async () => {
       const btn = document.getElementById('refreshBtn');
       btn.textContent = '⏳ جاري…';
