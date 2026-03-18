@@ -14,7 +14,7 @@ const CONFIG = {
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxhXuUE7kn5bn0iN-9ENOxxDtC2fTwLF_VZQ74PpqPCHP9v4XWb_LFMPbApxBpgEWE/exec',
 
   // كلمة مرور لوحة الإدارة
-  ADMIN_PASSWORD: 'Ff1994',
+  ADMIN_PASSWORD: 'admin123',
 
   /**
    * ⚠️ مهم جداً للـ PWA على GitHub Pages
