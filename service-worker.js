@@ -2,8 +2,7 @@ const CACHE = 'shajarah-v4';
 const SHELL = [
   './', './index.html', './manifest.json',
   './css/style.css',
-  './js/config.js', './js/sheets.js', './js/tree.js',
-  './js/ui.js', './js/app.js',
+  './js/main.js',
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 
