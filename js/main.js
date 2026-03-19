@@ -1,494 +1,435 @@
 /**
- * config.js — الإعدادات
- * ⚠️ عدّل هذه القيم قبل الرفع
+ * config.js
  */
 const CONFIG = {
-  // رابط Apps Script بعد النشر
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzZHg589-B2f2c1h7xToXDufDw9TCFuIJJWJwPmeUEpsSjJgTad0HZAbdDcrH-Wmw/exec',
-
-  // كلمة مرور المدير
   ADMIN_PASSWORD: 'admin123',
-
-  // مدة الضغط للقائمة المنبثقة (ms) — 0 = نقرة واحدة فقط
-  LONG_PRESS: 0,
 };
+
 /**
- * sheets.js — التواصل مع Google Sheets
+ * sheets.js
  */
 const Sheets = (() => {
-
   async function _call(params) {
     const url = CONFIG.APPS_SCRIPT_URL;
     if (!url || url.includes('YOUR_APPS_SCRIPT')) {
-      throw new Error('لم يتم تعيين رابط Apps Script في config.js');
+      throw new Error('لم يتم تعيين رابط Apps Script');
     }
     let res;
     try {
       res = await fetch(`${url}?${new URLSearchParams(params)}`, { redirect: 'follow' });
-    } catch (e) {
-      throw new Error('تعذّر الاتصال — تحقق من الإنترنت');
-    }
+    } catch (e) { throw new Error('تعذّر الاتصال'); }
     const json = await res.json();
     if (json.error) throw new Error(json.error);
     return json;
   }
 
-  const getMembers       = ()  => _call({ action: 'getMembers' }).then(d => d.members || []);
-  const getPendingReqs   = ()  => _call({ action: 'getPendingRequests' }).then(d => d.requests || []);
-  const getPendingUpds   = ()  => _call({ action: 'getPendingUpdates'  }).then(d => d.updates  || []);
-  const approveChild     = id  => _call({ action: 'approveAddChild',    requestId: id });
-  const approveUpdate    = id  => _call({ action: 'approveUpdate',      requestId: id });
-  const rejectReq        = (id,sh) => _call({ action: 'rejectRequest',  requestId: id, sheet: sh });
-  const rejectUpd        = id  => _call({ action: 'rejectUpdate',       requestId: id });
-  const directAddChild   = p   => _call({ action: 'directAddChild',     ...p });
-  const directUpdate     = p   => _call({ action: 'directUpdateMember', ...p });
-
-  const submitAddChild = ({ parentId, childName, birthYear, submittedBy }) =>
-    _call({ action: 'addPendingRequest', type: 'add_child', parentId, childName, birthDate: birthYear || '', submittedBy: submittedBy || 'مجهول' });
-
-  const submitUpdateDetails = ({ memberId, memberName, birthDate, phone, address, job, note, submittedBy }) =>
-    _call({ action: 'addPendingUpdate', memberId, memberName, birthDate: birthDate||'', phone: phone||'', address: address||'', job: job||'', note: note||'', submittedBy: submittedBy||'مجهول' });
-
-  return { getMembers, getPendingReqs, getPendingUpds, approveChild, approveUpdate, rejectReq, rejectUpd, directAddChild, directUpdate, submitAddChild, submitUpdateDetails };
+  return {
+    getMembers:     ()  => _call({ action: 'getMembers' }).then(d => d.members || []),
+    getPendingReqs: ()  => _call({ action: 'getPendingRequests' }).then(d => d.requests || []),
+    getPendingUpds: ()  => _call({ action: 'getPendingUpdates'  }).then(d => d.updates  || []),
+    approveChild:   id  => _call({ action: 'approveAddChild',    requestId: id }),
+    approveUpdate:  id  => _call({ action: 'approveUpdate',      requestId: id }),
+    rejectReq:   (id,s) => _call({ action: 'rejectRequest',  requestId: id, sheet: s }),
+    rejectUpd:      id  => _call({ action: 'rejectUpdate',       requestId: id }),
+    directAddChild: p   => _call({ action: 'directAddChild',     ...p }),
+    directUpdate:   p   => _call({ action: 'directUpdateMember', ...p }),
+    submitAddChild: ({parentId,childName,birthYear,submittedBy}) =>
+      _call({action:'addPendingRequest',type:'add_child',parentId,childName,birthDate:birthYear||'',submittedBy:submittedBy||'مجهول'}),
+    submitUpdateDetails: ({memberId,memberName,birthDate,phone,address,job,note,submittedBy}) =>
+      _call({action:'addPendingUpdate',memberId,memberName,birthDate:birthDate||'',phone:phone||'',address:address||'',job:job||'',note:note||'',submittedBy:submittedBy||'مجهول'}),
+  };
 })();
+
 /**
- * tree.js — شجرة أفقية واضحة
- * الجذر في المنتصف يميناً، الأبناء تتفرع لليسار
- * كل عقدة: بيضاوية بنية مع الاسم
+ * tree.js — شجرة أفقية واضحة مناسبة لـ 197 شخص
+ * =================================================
+ * - التخطيط: أفقي من اليسار (جذر) إلى اليمين (أحفاد)
+ * - الأغصان: منحنيات Bezier ناعمة
+ * - العقد: بيضاوية بنية خشبية مع الاسم
+ * - مناسب لعائلات كبيرة (29 أبناً في المستوى الواحد)
  */
 const Tree = (() => {
 
-  let _members = [], _map = {}, _svg = null, _g = null,
-      _zoom = null, _initT = null;
+  let _members=[], _map={}, _svg=null, _g=null, _zoom=null, _initT=null;
 
-  // ── إعدادات العقدة ────────────────────────────────────────────────────────
-  const NW = 74;   // عرض البيضاوية
-  const NH = 30;   // ارتفاع البيضاوية
-  const DX = 48;   // المسافة الرأسية بين الأخوة
-  const DY = 140;  // المسافة الأفقية بين الأجيال
+  // أبعاد العقدة
+  const NW = 70;  // عرض
+  const NH = 26;  // ارتفاع
 
-  function _buildMap(m) { _map = {}; m.forEach(x => (_map[x.id] = x)); }
+  function _buildMap(m) { _map={}; m.forEach(x=>(_map[x.id]=x)); }
 
-  // ── تحويل إلى هرمي ──────────────────────────────────────────────────────
   function _toHierarchy() {
     const roots = _members.filter(m => !m.parent_id || !_map[m.parent_id]);
     if (!roots.length) return null;
-    const nodes = {};
-    _members.forEach(m => (nodes[m.id] = { ...m, children: [] }));
-    _members.forEach(m => {
-      if (m.parent_id && nodes[m.parent_id])
-        nodes[m.parent_id].children.push(nodes[m.id]);
-    });
-    if (roots.length === 1) return nodes[roots[0].id];
-    return { id: '__root__', name: '', children: roots.map(r => nodes[r.id]) };
+    const nodes={};
+    _members.forEach(m=>(nodes[m.id]={...m,children:[]}));
+    _members.forEach(m=>{ if(m.parent_id&&nodes[m.parent_id]) nodes[m.parent_id].children.push(nodes[m.id]); });
+    if (roots.length===1) return nodes[roots[0].id];
+    return {id:'__root__',name:'',children:roots.map(r=>nodes[r.id])};
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  الرسم الرئيسي
-  // ════════════════════════════════════════════════════════════════════════
   function render(members) {
-    _members = members;
-    _buildMap(members);
+    _members=members; _buildMap(members);
+    const wrap=document.getElementById('treeWrap');
+    wrap.innerHTML='';
+    const W=wrap.clientWidth||window.innerWidth;
+    const H=wrap.clientHeight||(window.innerHeight-100);
 
-    const wrap = document.getElementById('treeWrap');
-    wrap.innerHTML = '';
-    const W = wrap.clientWidth  || window.innerWidth;
-    const H = wrap.clientHeight || (window.innerHeight - 100);
+    _svg=d3.select('#treeWrap').append('svg').attr('width',W).attr('height',H);
 
-    _svg = d3.select('#treeWrap').append('svg')
-      .attr('width', W).attr('height', H)
-      .style('overflow', 'hidden');
+    // ── تعاريف SVG ──
+    const defs=_svg.append('defs');
 
-    // ── تعريفات ──
-    const defs = _svg.append('defs');
+    // تدرج خشبي بني
+    const rg=defs.append('radialGradient').attr('id','wg')
+      .attr('cx','40%').attr('cy','35%').attr('r','60%');
+    rg.append('stop').attr('offset','0%') .attr('stop-color','#e8c88a');
+    rg.append('stop').attr('offset','45%').attr('stop-color','#a86828');
+    rg.append('stop').attr('offset','85%').attr('stop-color','#6a3808');
+    rg.append('stop').attr('offset','100%').attr('stop-color','#3a1800');
 
-    // تدرج خشبي
-    const rg = defs.append('radialGradient').attr('id', 'woodG')
-      .attr('cx','38%').attr('cy','32%').attr('r','65%');
-    rg.append('stop').attr('offset','0%') .attr('stop-color','#dfc090');
-    rg.append('stop').attr('offset','40%').attr('stop-color','#a87030');
-    rg.append('stop').attr('offset','80%').attr('stop-color','#6a3c10');
-    rg.append('stop').attr('offset','100%').attr('stop-color','#3d1f00');
+    // ظل خفيف
+    const fl=defs.append('filter').attr('id','sh')
+      .attr('x','-20%').attr('y','-30%').attr('width','140%').attr('height','160%');
+    fl.append('feDropShadow').attr('dx',0).attr('dy',1.5)
+      .attr('stdDeviation',2).attr('flood-color','rgba(0,0,0,.28)');
 
-    // ظل
-    const flt = defs.append('filter').attr('id','sh')
-      .attr('x','-30%').attr('y','-40%').attr('width','160%').attr('height','180%');
-    flt.append('feDropShadow').attr('dx',1).attr('dy',2)
-       .attr('stdDeviation',2.5).attr('flood-color','rgba(0,0,0,0.3)');
+    // ── حاوية رئيسية ──
+    _g = _svg.append('g');
 
-    // مقص للـ clipPath حتى لا يخرج شيء عن الحدود
-    defs.append('clipPath').attr('id','clip')
-      .append('rect').attr('width', W*10).attr('height', H*10)
-      .attr('x', -W*5).attr('y', -H*5);
-
-    // ── مجموعة رئيسية ──
-    _g = _svg.append('g').attr('clip-path','url(#clip)');
-
-    // ── بناء التخطيط الأفقي ──
-    const hierData = _toHierarchy();
+    const hierData=_toHierarchy();
     if (!hierData) return;
 
-    const root = d3.hierarchy(hierData,
-      d => d.children && d.children.length ? d.children : null);
-    const count = root.descendants().length;
+    const root=d3.hierarchy(hierData, d=>d.children&&d.children.length?d.children:null);
+    const count=root.descendants().length;
 
-    // حجم العقدة يتكيف مع عدد الأفراد
-    const nodeSize = count > 200 ? [28, DY]
-                   : count > 100 ? [34, DY]
-                   : count > 50  ? [40, DY]
-                   : [DX, DY];
+    // حجم الفراغ بين العقد يتكيف مع الكثافة
+    const vSpace = count>150 ? 30 : count>80 ? 36 : count>40 ? 42 : 48;
+    const hSpace = count>150 ? 130 : count>80 ? 140 : 155;
 
-    // تخطيط أفقي: nodeSize بدلاً من size
-    d3.tree().nodeSize(nodeSize)(root);
+    // تخطيط أفقي: x=عمق(أفقي)، y=ترتيب(رأسي)
+    d3.tree().nodeSize([vSpace, hSpace])(root);
 
-    // قلب المحاور: x ← y (أفقي)
-    root.descendants().forEach(d => {
-      const tmp = d.x; d.x = d.y; d.y = tmp;
-    });
+    // قلب المحاور لتصبح الشجرة أفقية (الجذر يسار)
+    root.descendants().forEach(d => { const t=d.x; d.x=d.y; d.y=t; });
 
-    // ── رسم الأغصان المنحنية ──
+    // ── رسم الأغصان ──
     _g.append('g').attr('class','branches')
       .selectAll('path')
-      .data(root.links().filter(d => d.source.data.id !== '__root__'))
+      .data(root.links().filter(d=>d.source.data.id!=='__root__'))
       .enter().append('path')
-      .attr('class','branch')
-      .attr('data-parent', d => d.source.data.id)
-      .attr('data-child',  d => d.target.data.id)
-      .attr('stroke-width', d => Math.max(1.2, 4 - d.source.depth * 0.65))
-      .attr('d', d => {
-        // منحنى أفقي ناعم
-        const sx = d.source.x + NW/2, sy = d.source.y;
-        const tx = d.target.x - NW/2, ty = d.target.y;
-        const mx = (sx + tx) / 2;
-        return `M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+      .attr('class','br')
+      .attr('data-parent', d=>d.source.data.id)
+      .attr('data-child',  d=>d.target.data.id)
+      .attr('stroke-width', d=>Math.max(1, 3.5 - d.source.depth*0.5))
+      .attr('d', d=>{
+        // أغصان أفقية منحنية
+        const x1=d.source.x+NW/2, y1=d.source.y;
+        const x2=d.target.x-NW/2, y2=d.target.y;
+        const mx=(x1+x2)/2;
+        return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
       });
 
     // ── رسم العقد ──
-    const ng = _g.append('g').attr('class','nodes')
-      .selectAll('g.node-g')
-      .data(root.descendants().filter(d => d.data.id !== '__root__'))
+    const ng=_g.append('g').attr('class','nodes')
+      .selectAll('g.ng')
+      .data(root.descendants().filter(d=>d.data.id!=='__root__'))
       .enter().append('g')
-      .attr('class','node-g')
-      .attr('data-id', d => d.data.id)
-      .attr('transform', d => `translate(${d.x - NW/2},${d.y - NH/2})`);
+      .attr('class','ng')
+      .attr('data-id', d=>d.data.id)
+      .attr('transform', d=>`translate(${d.x-NW/2},${d.y-NH/2})`);
 
-    // ── شكل البيضاوية عبر rect مع border-radius ──
-    ng.append('rect')
-      .attr('class','node-rect')
-      .attr('width', NW).attr('height', NH)
-      .attr('rx', NH/2).attr('ry', NH/2)
+    // البيضاوية
+    ng.append('rect').attr('class','no')
+      .attr('width',NW).attr('height',NH)
+      .attr('rx',NH/2).attr('ry',NH/2)
+      .attr('fill','url(#wg)')
       .style('filter','url(#sh)');
 
-    // ── الاسم ──
-    ng.append('text')
-      .attr('class','node-label')
-      .attr('x', NW/2).attr('y', NH/2)
-      .attr('dy', '.35em')
-      .text(d => {
-        const n = d.data.name || '';
-        return n.length > 7 ? n.slice(0,7) + '…' : n;
+    // الاسم — يُختصر إذا طال
+    ng.append('text').attr('class','nl')
+      .attr('x',NW/2).attr('y',NH/2).attr('dy','.35em')
+      .text(d=>{
+        const n=d.data.name||'';
+        // الأسماء الطويلة تُختصر
+        if (n.length<=6) return n;
+        const parts=n.split(' ');
+        if (parts.length>1) return parts[0]; // اسم أول فقط إذا مركّب
+        return n.slice(0,6)+'…';
       });
 
-    // ── منطقة نقر موسّعة ──
-    ng.append('rect')
-      .attr('class','node-hit')
-      .attr('width', NW + 8).attr('height', NH + 8)
-      .attr('x', -4).attr('y', -4)
-      .attr('rx', NH/2 + 4).attr('ry', NH/2 + 4)
-      .on('click',    function(e, d) { e.stopPropagation(); UI.onNodeClick(d.data.id, e.clientX, e.clientY); })
-      .on('touchend', function(e, d) {
-        e.preventDefault(); e.stopPropagation();
-        const t = e.changedTouches[0];
-        UI.onNodeClick(d.data.id, t.clientX, t.clientY);
-      });
+    // منطقة نقر
+    ng.append('rect').attr('class','nh')
+      .attr('width',NW+10).attr('height',NH+10)
+      .attr('x',-5).attr('y',-5)
+      .attr('rx',NH/2+5).attr('ry',NH/2+5)
+      .on('click',    function(e,d){ e.stopPropagation(); UI.onNodeClick(d.data.id,e.clientX,e.clientY); })
+      .on('touchend', function(e,d){ e.preventDefault(); e.stopPropagation();
+        const t=e.changedTouches[0]; UI.onNodeClick(d.data.id,t.clientX,t.clientY); });
 
-    // ── ضبط تلقائي ──
-    _autoFit(W, H, root);
+    // ── ملء الشاشة تلقائياً ──
+    _autoFit(W,H,root);
 
     // ── zoom/pan ──
-    _zoom = d3.zoom().scaleExtent([0.05, 6])
-      .on('zoom', e => _g.attr('transform', e.transform));
-    _svg.call(_zoom).on('dblclick.zoom', null);
-    if (_initT) _svg.call(_zoom.transform, _initT);
+    _zoom=d3.zoom().scaleExtent([0.04,6])
+      .on('zoom',e=>_g.attr('transform',e.transform));
+    _svg.call(_zoom).on('dblclick.zoom',null);
+    if (_initT) _svg.call(_zoom.transform,_initT);
   }
 
-  // ── ملء الشاشة تلقائياً ──────────────────────────────────────────────────
-  function _autoFit(W, H, root) {
+  function _autoFit(W,H,root) {
     let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
-    root.descendants().forEach(d => {
-      if (d.data.id==='__root__') return;
-      if (d.x<x0) x0=d.x; if (d.x>x1) x1=d.x;
-      if (d.y<y0) y0=d.y; if (d.y>y1) y1=d.y;
+    root.descendants().forEach(d=>{
+      if(d.data.id==='__root__') return;
+      if(d.x<x0) x0=d.x; if(d.x>x1) x1=d.x;
+      if(d.y<y0) y0=d.y; if(d.y>y1) y1=d.y;
     });
-    const pad=40, tW=x1-x0+NW+pad*2, tH=y1-y0+NH+pad*2;
-    const sc = Math.min((W-16)/tW, (H-16)/tH, 2);
-    const tx = W/2 - ((x0+x1)/2+NW/2)*sc;
-    const ty = H/2 - ((y0+y1)/2+NH/2)*sc;
-    _initT = d3.zoomIdentity.translate(tx,ty).scale(sc);
-    if (_svg && _zoom) _svg.call(_zoom.transform, _initT);
+    const pad=30;
+    const tW=x1-x0+NW+pad*2;
+    const tH=y1-y0+NH+pad*2;
+    const sc=Math.min((W-8)/tW,(H-8)/tH,1.6);
+    const tx=W/2-((x0+x1)/2+NW/2)*sc;
+    const ty=H/2-((y0+y1)/2+NH/2)*sc;
+    _initT=d3.zoomIdentity.translate(tx,ty).scale(sc);
+    if(_svg&&_zoom) _svg.call(_zoom.transform,_initT);
   }
 
-  // ── تمركز على عقدة ──────────────────────────────────────────────────────
   function centreOnNode(id) {
-    if (!_svg||!_zoom) return;
-    const el = document.querySelector(`g.node-g[data-id="${id}"]`);
-    if (!el) return;
-    const W = document.getElementById('treeWrap').clientWidth;
-    const H = document.getElementById('treeWrap').clientHeight;
-    const m = el.getScreenCTM();
-    if (!m) return;
-    _svg.transition().duration(500)
-      .call(_zoom.transform,
-        d3.zoomIdentity
-          .translate(d3.zoomTransform(_svg.node()).x + W/2 - (m.e+NW/2*m.a),
-                     d3.zoomTransform(_svg.node()).y + H/2 - (m.f+NH/2*m.d))
-          .scale(d3.zoomTransform(_svg.node()).k));
+    if(!_svg||!_zoom) return;
+    const el=document.querySelector(`g.ng[data-id="${id}"]`);
+    if(!el) return;
+    const W=document.getElementById('treeWrap').clientWidth;
+    const H=document.getElementById('treeWrap').clientHeight;
+    const m=el.getScreenCTM(); if(!m) return;
+    const cur=d3.zoomTransform(_svg.node());
+    _svg.transition().duration(500).call(_zoom.transform,
+      d3.zoomIdentity
+        .translate(cur.x+W/2-(m.e+NW/2*m.a), cur.y+H/2-(m.f+NH/2*m.d))
+        .scale(cur.k)
+    );
   }
 
   function centreOnRoot() {
-    if (_svg&&_zoom&&_initT)
-      _svg.transition().duration(400).call(_zoom.transform, _initT);
+    if(_svg&&_zoom&&_initT)
+      _svg.transition().duration(400).call(_zoom.transform,_initT);
   }
 
-  // ── تمييز ──────────────────────────────────────────────────────────────
   function highlight(id) {
-    d3.selectAll('g.node-g').classed('highlighted',false);
-    d3.select(`g.node-g[data-id="${id}"]`).classed('highlighted',true);
+    d3.selectAll('g.ng').classed('hl',false);
+    d3.select(`g.ng[data-id="${id}"]`).classed('hl',true);
   }
 
   function highlightLineage(id) {
     clearLineage();
-    const ancs=new Set(); let cur=id;
-    while(cur){ ancs.add(cur); const m=_map[cur]; cur=m?.parent_id&&_map[m.parent_id]?m.parent_id:null; }
-    ancs.forEach(a=>d3.select(`g.node-g[data-id="${a}"]`).classed('lineage',true));
-    d3.selectAll('path.branch').each(function(d){
-      if(ancs.has(d?.source?.data?.id)&&ancs.has(d?.target?.data?.id))
-        d3.select(this).classed('lineage',true);
+    const a=new Set(); let c=id;
+    while(c){ a.add(c); const m=_map[c]; c=m?.parent_id&&_map[m.parent_id]?m.parent_id:null; }
+    a.forEach(x=>d3.select(`g.ng[data-id="${x}"]`).classed('ln',true));
+    d3.selectAll('path.br').each(function(d){
+      if(a.has(d?.source?.data?.id)&&a.has(d?.target?.data?.id))
+        d3.select(this).classed('ln',true);
     });
-    return ancs;
+    return a;
   }
 
   function clearLineage() {
-    d3.selectAll('.node-g.lineage').classed('lineage',false);
-    d3.selectAll('.branch.lineage').classed('lineage',false);
+    d3.selectAll('.ng.ln').classed('ln',false);
+    d3.selectAll('.br.ln').classed('ln',false);
   }
 
   function getMember(id) { return _map[id]; }
   function getMembers()  { return _members; }
 
-  return { render, centreOnNode, centreOnRoot, highlight, highlightLineage, clearLineage, getMember, getMembers };
+  return { render,centreOnNode,centreOnRoot,highlight,highlightLineage,clearLineage,getMember,getMembers };
 })();
 
 /**
- * ui.js — كل التفاعلات والنوافذ
+ * ui.js — واجهة المستخدم الكاملة
  */
 const UI = (() => {
 
-  let _curId = null;
-  let _adminAuth = false;
-  const _proc = new Set();
+  let _cur=null, _auth=false;
+  const _proc=new Set();
+  const $=id=>document.getElementById(id);
 
-  const $ = id => document.getElementById(id);
-
-  // ── إشعار ─────────────────────────────────────────────────────────────────
-  function toast(msg, ms = 3200) {
-    const t = $('toast');
-    t.textContent = msg;
-    t.classList.add('on');
-    setTimeout(() => t.classList.remove('on'), ms);
+  function toast(msg,ms=3200) {
+    const t=$('toast'); t.textContent=msg; t.classList.add('on');
+    setTimeout(()=>t.classList.remove('on'),ms);
   }
 
-  // ── قائمة منبثقة ──────────────────────────────────────────────────────────
-  function _showMenu(id, x, y) {
-    _curId = id;
-    const m  = $('ctxMenu');
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const mw = 200, mh = 210;
-    m.style.left = Math.min(x - mw / 2, vw - mw - 6) + 'px';
-    m.style.top  = Math.min(y + 10, vh - mh - 6) + 'px';
+  // ── القائمة المنبثقة ──
+  function _showMenu(id,x,y) {
+    _cur=id;
+    const m=$('ctxMenu');
+    const vw=window.innerWidth, vh=window.innerHeight;
+    const mw=200, mh=220;
+    m.style.left=Math.max(4,Math.min(x-mw/2,vw-mw-4))+'px';
+    m.style.top =Math.min(y+10,vh-mh-4)+'px';
     m.classList.add('on');
   }
+  function _hideMenu() { $('ctxMenu').classList.remove('on'); _cur=null; }
 
-  function _hideMenu() { $('ctxMenu').classList.remove('on'); _curId = null; }
-
-  function onNodeClick(id, x, y) {
-    if ($('ctxMenu').classList.contains('on') && _curId === id) { _hideMenu(); return; }
-    _hideMenu();
-    _showMenu(id, x, y);
+  function onNodeClick(id,x,y) {
+    if($('ctxMenu').classList.contains('on')&&_cur===id){ _hideMenu(); return; }
+    _hideMenu(); _showMenu(id,x,y);
   }
 
-  // ── لوحة التفاصيل ─────────────────────────────────────────────────────────
+  // ── لوحة التفاصيل ──
   function _openDetail(id) {
-    const m = Tree.getMember(id);
-    if (!m) return;
+    const m=Tree.getMember(id); if(!m) return;
+    const yr=m.birth_date?String(m.birth_date).replace(/-.*/, ''):'';
+    const rows=[
+      ['📅','سنة الميلاد',yr],
+      ['📞','الهاتف',m.phone],
+      ['🏠','العنوان',m.address],
+      ['💼','المهنة',m.job],
+      ['📝','ملاحظة',m.note],
+    ].filter(r=>r[2]);
 
-    const rows = [
-      ['📅', 'تاريخ الميلاد', m.birth_date ? String(m.birth_date).replace(/-.*/, '') : ''],
-      ['📞', 'الهاتف',       m.phone   ],
-      ['🏠', 'العنوان',      m.address ],
-      ['💼', 'المهنة',       m.job     ],
-      ['📝', 'ملاحظة',      m.note    ],
-    ].filter(r => r[2]);
-
-    $('detailBody').innerHTML = `
+    $('detailBody').innerHTML=`
       <div class="d-avatar">👤</div>
       <div class="d-name">${m.name}</div>
-      ${rows.map(r => `
-        <div class="d-row">
-          <span class="d-icon">${r[0]}</span>
-          <div><div class="d-lbl">${r[1]}</div><div class="d-val">${r[2]}</div></div>
-        </div>`).join('') || '<p class="d-empty">لا توجد تفاصيل بعد.<br/>اضغط على الاسم ثم «تعديل البيانات».</p>'}
+      ${rows.map(r=>`<div class="d-row">
+        <span class="d-icon">${r[0]}</span>
+        <div><div class="d-lbl">${r[1]}</div><div class="d-val">${r[2]}</div></div>
+      </div>`).join('')||'<p class="d-empty">لا توجد تفاصيل بعد.</p>'}
     `;
     $('detailPanel').classList.add('open');
     $('panelOverlay').classList.add('on');
   }
-
   function _closeDetail() {
     $('detailPanel').classList.remove('open');
     $('panelOverlay').classList.remove('on');
   }
 
-  // ── نافذة نموذج ───────────────────────────────────────────────────────────
-  function _openModal(html) {
-    $('modalBody').innerHTML = html;
-    $('modalBack').classList.add('on');
-  }
-  function _closeModal() { $('modalBack').classList.remove('on'); }
+  // ── نافذة النموذج ──
+  function _openModal(html) { $('modalBody').innerHTML=html; $('modalBack').classList.add('on'); }
+  function _closeModal()    { $('modalBack').classList.remove('on'); }
 
-  // ── نموذج إضافة ابن ───────────────────────────────────────────────────────
-  function _formAddChild(parentId) {
-    const p      = Tree.getMember(parentId);
-    const isAdm  = _adminAuth;
-    const lbl    = isAdm ? '✅ إضافة مباشرة' : 'إرسال الطلب';
+  // ── إضافة ابن ──
+  function _formChild(pid) {
+    const p=Tree.getMember(pid), ia=_auth;
+    const lbl=ia?'✅ إضافة مباشرة':'إرسال الطلب';
     _openModal(`
       <div class="modal-title">👶 إضافة ابن / ابنة</div>
-      ${isAdm ? '<div class="admin-badge">🔑 وضع المدير — الإضافة فورية</div>' : ''}
-      <p class="p-info">إضافة إلى: <strong>${p?.name || parentId}</strong></p>
+      ${ia?'<div class="admin-badge">🔑 وضع المدير — فوري</div>':''}
+      <p class="p-info">إضافة إلى: <strong>${p?.name||pid}</strong></p>
       <div class="form-group">
         <label class="form-label">الاسم <span class="req">*</span></label>
-        <input class="form-input" id="fc_n" type="text" placeholder="مثال: محمد" maxlength="30"/>
-        <small class="form-hint">مقطع واحد فقط بدون لقب</small>
+        <input class="form-input" id="fn" type="text" placeholder="أدخل الاسم" maxlength="30"/>
+        <small class="form-hint">اسم واحد فقط</small>
       </div>
       <div class="form-group">
         <label class="form-label">سنة الميلاد</label>
-        <input class="form-input" id="fc_b" type="number" placeholder="مثال: 1995" min="1900" max="2025" style="width:140px"/>
+        <input class="form-input" id="fb" type="number" placeholder="مثال: 1995" min="1900" max="2025" style="width:130px"/>
       </div>
-      ${!isAdm ? `<div class="form-group"><label class="form-label">اسمك (اختياري)</label>
-        <input class="form-input" id="fc_by" type="text" placeholder="من قدّم الطلب؟"/></div>` : ''}
-      <button class="btn-gold" id="fc_sub">${lbl}</button>
-      <p class="success-msg" id="fc_msg"></p>
+      ${!ia?`<div class="form-group"><label class="form-label">اسمك (اختياري)</label>
+        <input class="form-input" id="fby" type="text" placeholder="من قدّم الطلب؟"/></div>`:''}
+      <button class="btn-gold" id="fsub">${lbl}</button>
+      <p class="success-msg" id="fmsg"></p>
     `);
-
-    $('fc_sub').onclick = async () => {
-      const name = $('fc_n').value.trim();
-      if (!name)         { toast('⚠️ الاسم مطلوب'); return; }
-      if (/\s/.test(name)) { toast('⚠️ مقطع واحد فقط — بدون مسافة'); return; }
-      const btn = $('fc_sub');
-      btn.textContent = 'جاري…'; btn.disabled = true;
+    $('fsub').onclick=async()=>{
+      const name=$('fn').value.trim();
+      if(!name){ toast('⚠️ الاسم مطلوب'); return; }
+      if(/\s/.test(name)){ toast('⚠️ اسم واحد فقط'); return; }
+      const btn=$('fsub'); btn.textContent='جاري…'; btn.disabled=true;
       try {
-        if (isAdm) {
-          await Sheets.directAddChild({ parentId, childName: name, birthYear: $('fc_b').value });
-          $('fc_msg').textContent = '✅ تمت الإضافة فوراً!';
-          btn.style.display = 'none';
-          setTimeout(() => { _closeModal(); App.reload(); }, 900);
+        if(ia){
+          await Sheets.directAddChild({parentId:pid,childName:name,birthYear:$('fb').value});
+          $('fmsg').textContent='✅ تمت الإضافة!';
+          btn.style.display='none';
+          setTimeout(()=>{ _closeModal(); App.reload(); },900);
         } else {
-          await Sheets.submitAddChild({ parentId, childName: name, birthYear: $('fc_b').value, submittedBy: $('fc_by')?.value });
-          $('fc_msg').textContent = '✅ تم إرسال الطلب! سيظهر بعد الموافقة.';
-          btn.style.display = 'none';
+          await Sheets.submitAddChild({parentId:pid,childName:name,birthYear:$('fb').value,submittedBy:$('fby')?.value});
+          $('fmsg').textContent='✅ تم الإرسال! سيظهر بعد الموافقة.';
+          btn.style.display='none';
         }
-      } catch (e) { toast('❌ ' + e.message); btn.textContent = lbl; btn.disabled = false; }
+      } catch(e){ toast('❌ '+e.message); btn.textContent=lbl; btn.disabled=false; }
     };
   }
 
-  // ── نموذج تعديل البيانات ──────────────────────────────────────────────────
-  function _formEditDetails(memberId) {
-    const m     = Tree.getMember(memberId) || {};
-    const isAdm = _adminAuth;
-    const lbl   = isAdm ? '✅ حفظ مباشر' : 'إرسال التحديث';
-    const yr    = m.birth_date ? String(m.birth_date).replace(/-.*/, '') : '';
+  // ── تعديل البيانات ──
+  function _formEdit(mid) {
+    const m=Tree.getMember(mid)||{}, ia=_auth;
+    const lbl=ia?'✅ حفظ مباشر':'إرسال التحديث';
+    const yr=m.birth_date?String(m.birth_date).replace(/-.*/, ''):'';
     _openModal(`
       <div class="modal-title">✏️ تعديل البيانات</div>
-      ${isAdm ? '<div class="admin-badge">🔑 وضع المدير — الحفظ فوري</div>' : ''}
-      <p class="p-info">تعديل: <strong>${m.name || memberId}</strong></p>
-      ${isAdm ? `<div class="form-group"><label class="form-label">الاسم <span class="req">*</span></label>
-        <input class="form-input" id="fd_nm" type="text" value="${m.name||''}"/></div>` : ''}
+      ${ia?'<div class="admin-badge">🔑 وضع المدير — فوري</div>':''}
+      <p class="p-info">تعديل: <strong>${m.name||mid}</strong></p>
+      ${ia?`<div class="form-group"><label class="form-label">الاسم <span class="req">*</span></label>
+        <input class="form-input" id="enm" value="${m.name||''}"/></div>`:''}
       <div class="form-group"><label class="form-label">سنة الميلاد</label>
-        <input class="form-input" id="fd_b" type="number" placeholder="مثال: 1985" min="1900" max="2025" style="width:140px" value="${yr}"/></div>
+        <input class="form-input" id="eb" type="number" value="${yr}" placeholder="1985" min="1900" max="2025" style="width:130px"/></div>
       <div class="form-group"><label class="form-label">الهاتف</label>
-        <input class="form-input" id="fd_ph" type="tel" placeholder="07XX XXX XXXX" value="${m.phone||''}"/></div>
+        <input class="form-input" id="eph" type="tel" value="${m.phone||''}" placeholder="07XX XXX XXXX"/></div>
       <div class="form-group"><label class="form-label">العنوان</label>
-        <input class="form-input" id="fd_ad" type="text" placeholder="المدينة، المحافظة" value="${m.address||''}"/></div>
+        <input class="form-input" id="ead" value="${m.address||''}" placeholder="المدينة…"/></div>
       <div class="form-group"><label class="form-label">المهنة</label>
-        <input class="form-input" id="fd_j" type="text" placeholder="مهندس، طبيب…" value="${m.job||''}"/></div>
+        <input class="form-input" id="ej" value="${m.job||''}" placeholder="مهندس، طبيب…"/></div>
       <div class="form-group"><label class="form-label">ملاحظة</label>
-        <textarea class="form-textarea" id="fd_no">${m.note||''}</textarea></div>
-      ${!isAdm ? `<div class="form-group"><label class="form-label">اسمك (اختياري)</label>
-        <input class="form-input" id="fd_by" type="text" placeholder="من قدّم الطلب؟"/></div>` : ''}
-      <button class="btn-gold" id="fd_sub">${lbl}</button>
-      <p class="success-msg" id="fd_msg"></p>
+        <textarea class="form-textarea" id="eno">${m.note||''}</textarea></div>
+      ${!ia?`<div class="form-group"><label class="form-label">اسمك (اختياري)</label>
+        <input class="form-input" id="eby" placeholder="من قدّم الطلب؟"/></div>`:''}
+      <button class="btn-gold" id="esub">${lbl}</button>
+      <p class="success-msg" id="emsg"></p>
     `);
-
-    $('fd_sub').onclick = async () => {
-      const btn = $('fd_sub');
-      btn.textContent = 'جاري…'; btn.disabled = true;
+    $('esub').onclick=async()=>{
+      const btn=$('esub'); btn.textContent='جاري…'; btn.disabled=true;
       try {
-        if (isAdm) {
-          const nm = $('fd_nm')?.value.trim();
-          if (!nm) { toast('⚠️ الاسم مطلوب'); btn.textContent = lbl; btn.disabled = false; return; }
-          await Sheets.directUpdate({ memberId, name: nm, birthDate: $('fd_b').value, phone: $('fd_ph').value, address: $('fd_ad').value, job: $('fd_j').value, note: $('fd_no').value });
-          $('fd_msg').textContent = '✅ تم الحفظ فوراً!';
-          btn.style.display = 'none';
-          setTimeout(() => { _closeModal(); App.reload(); }, 900);
+        if(ia){
+          const nm=$('enm')?.value.trim();
+          if(!nm){ toast('⚠️ الاسم مطلوب'); btn.textContent=lbl; btn.disabled=false; return; }
+          await Sheets.directUpdate({memberId:mid,name:nm,birthDate:$('eb').value,phone:$('eph').value,address:$('ead').value,job:$('ej').value,note:$('eno').value});
+          $('emsg').textContent='✅ تم الحفظ!';
+          btn.style.display='none';
+          setTimeout(()=>{ _closeModal(); App.reload(); },900);
         } else {
-          await Sheets.submitUpdateDetails({ memberId, memberName: m.name, birthDate: $('fd_b').value, phone: $('fd_ph').value, address: $('fd_ad').value, job: $('fd_j').value, note: $('fd_no').value, submittedBy: $('fd_by')?.value });
-          $('fd_msg').textContent = '✅ تم إرسال التحديث! سيظهر بعد الموافقة.';
-          btn.style.display = 'none';
+          await Sheets.submitUpdateDetails({memberId:mid,memberName:m.name,birthDate:$('eb').value,phone:$('eph').value,address:$('ead').value,job:$('ej').value,note:$('eno').value,submittedBy:$('eby')?.value});
+          $('emsg').textContent='✅ تم الإرسال! سيظهر بعد الموافقة.';
+          btn.style.display='none';
         }
-      } catch (e) { toast('❌ ' + e.message); btn.textContent = lbl; btn.disabled = false; }
+      } catch(e){ toast('❌ '+e.message); btn.textContent=lbl; btn.disabled=false; }
     };
   }
 
-  // ── إظهار الأصل ───────────────────────────────────────────────────────────
-  function _showLineage(id) {
-    const ancs = Tree.highlightLineage(id);
-    const chain = [];
-    let cur = id;
-    while (cur) {
-      const m = Tree.getMember(cur);
-      if (!m) break;
-      chain.unshift(m.name);
-      cur = m.parent_id && Tree.getMember(m.parent_id) ? m.parent_id : null;
-    }
-    const mem = Tree.getMember(id);
+  // ── إظهار الأصل ──
+  function _formLineage(id) {
+    Tree.highlightLineage(id);
+    const chain=[]; let c=id;
+    while(c){ const m=Tree.getMember(c); if(!m) break; chain.unshift(m.name); c=m.parent_id&&Tree.getMember(m.parent_id)?m.parent_id:null; }
+    const mem=Tree.getMember(id);
     _openModal(`
       <div class="modal-title">🔗 سلسلة الأصل</div>
       <p class="p-info">سلالة: <strong>${mem?.name||id}</strong></p>
       <div class="lineage-chain">
-        ${chain.map((n, i) => `
+        ${chain.map((n,i)=>`
           <div class="lin-step ${i===chain.length-1?'current':''}">
             <span class="lin-num">${i+1}</span>
             <span class="lin-name">${n}</span>
           </div>
-          ${i<chain.length-1 ? '<div class="lin-arrow">↓</div>' : ''}
-        `).join('')}
+          ${i<chain.length-1?'<div class="lin-arrow">↓</div>':''}`).join('')}
       </div>
-      <button class="btn-outline" id="clrLin">✕ إخفاء التمييز</button>
+      <button class="btn-outline" id="clrL">✕ إخفاء التمييز</button>
     `);
-    $('clrLin').onclick = () => { Tree.clearLineage(); _closeModal(); };
+    $('clrL').onclick=()=>{ Tree.clearLineage(); _closeModal(); };
   }
 
-  // ── الإحصائيات ────────────────────────────────────────────────────────────
+  // ── الإحصائيات ──
   function _showStats() {
-    const members = Tree.getMembers();
-    const total   = members.length;
-    const freq    = {};
-    members.forEach(m => { const w = (m.name||'').split(/\s+/)[0]; if(w) freq[w]=(freq[w]||0)+1; });
-    const top3 = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    const ms=Tree.getMembers(), total=ms.length;
+    const freq={};
+    ms.forEach(m=>{ const w=(m.name||'').split(' ')[0]; if(w) freq[w]=(freq[w]||0)+1; });
+    const top3=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
     _openModal(`
       <div class="modal-title">📊 إحصائيات الشجرة</div>
       <div class="stats-total"><div class="stats-num">${total}</div><div class="stats-lbl">فرد في الشجرة</div></div>
       <p class="p-info" style="margin-bottom:8px">أكثر الأسماء تكراراً</p>
-      ${top3.map(([n,c],i)=>`<div class="stats-row"><span class="stats-rank">${['🥇','🥈','🥉'][i]}</span><span class="stats-name">${n}</span><span class="stats-count">${c} مرة</span></div>`).join('')}
+      ${top3.map(([n,c],i)=>`<div class="stats-row">
+        <span class="stats-rank">${['🥇','🥈','🥉'][i]}</span>
+        <span class="stats-name">${n}</span>
+        <span class="stats-count">${c} مرة</span>
+      </div>`).join('')}
       <div class="stats-credit">
         تم إنشاء هذا البرنامج من قبل<br/>
         <strong>فضل عباس زينل</strong><br/>
@@ -497,94 +438,77 @@ const UI = (() => {
     `);
   }
 
-  // ── البحث ─────────────────────────────────────────────────────────────────
+  // ── البحث ──
   function _norm(s) {
     return (s||'').toLowerCase().trim()
-      .replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      .replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');
   }
-
-  function _score(member, parts) {
-    const n = _norm(member.name), ws = n.split(/\s+/);
-    let s = 0;
-    parts.forEach(p => {
-      if (n===p) s+=100; else if (n.startsWith(p)) s+=60; else if (n.includes(p)) s+=30;
-      ws.forEach(w => { if (w===p) s+=20; else if (w.startsWith(p)) s+=10; });
-    });
+  function _score(m,parts) {
+    const n=_norm(m.name),ws=n.split(' ');
+    let s=0;
+    parts.forEach(p=>{ if(n===p) s+=100; else if(n.startsWith(p)) s+=60; else if(n.includes(p)) s+=30;
+      ws.forEach(w=>{ if(w===p) s+=20; else if(w.startsWith(p)) s+=10; }); });
     return s;
   }
-
   function _doSearch() {
-    const raw = $('searchInput').value.trim();
-    if (!raw) { _hideDrop(); return; }
-    const parts   = _norm(raw).split(/\s+/).filter(Boolean);
-    const members = Tree.getMembers();
-    const scored  = members.map(m => ({ m, s: _score(m, parts) })).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,20);
-
-    if (!scored.length) { _showDrop([{ label:'لا توجد نتائج', id: null }]); return; }
-    if (scored.length===1) { _selectMember(scored[0].m.id); _hideDrop(); return; }
-    _showDrop(scored.map(x => ({ label: x.m.name, sub: [x.m.birth_date?String(x.m.birth_date).replace(/-.*/, ''):'', x.m.job].filter(Boolean).join(' · '), id: x.m.id })));
+    const raw=$('searchInput').value.trim();
+    if(!raw){ _hideDrop(); return; }
+    const parts=_norm(raw).split(/\s+/).filter(Boolean);
+    const scored=Tree.getMembers()
+      .map(m=>({m,s:_score(m,parts)})).filter(x=>x.s>0)
+      .sort((a,b)=>b.s-a.s).slice(0,20);
+    if(!scored.length){ _showDrop([{label:'لا توجد نتائج',id:null}]); return; }
+    if(scored.length===1){ _selectM(scored[0].m.id); _hideDrop(); return; }
+    _showDrop(scored.map(x=>({
+      label:x.m.name,
+      sub:[x.m.birth_date?String(x.m.birth_date).replace(/-.*/, ''):'',x.m.job].filter(Boolean).join(' · '),
+      id:x.m.id
+    })));
   }
-
   function _showDrop(items) {
-    const d = $('searchDrop');
-    d.innerHTML = items.map(it=>`
-      <div class="s-item" data-id="${it.id||''}">
-        <div>${it.label}</div>
-        ${it.sub?`<div class="s-sub">${it.sub}</div>`:''}
-      </div>`).join('');
-    d.querySelectorAll('[data-id]').forEach(row => {
-      row.addEventListener('click', () => {
-        if (row.dataset.id) _selectMember(row.dataset.id);
+    const d=$('searchDrop');
+    d.innerHTML=items.map(it=>`<div class="s-item" data-id="${it.id||''}">
+      <div>${it.label}</div>${it.sub?`<div class="s-sub">${it.sub}</div>`:''}
+    </div>`).join('');
+    d.querySelectorAll('[data-id]').forEach(row=>{
+      row.addEventListener('click',()=>{
+        if(row.dataset.id) _selectM(row.dataset.id);
         _hideDrop();
-        $('searchInput').value = row.querySelector('div').textContent;
+        $('searchInput').value=row.querySelector('div').textContent;
       });
     });
     d.classList.add('open');
   }
-
   function _hideDrop() { $('searchDrop').classList.remove('open'); }
-  function _selectMember(id) { Tree.centreOnNode(id); Tree.highlight(id); }
+  function _selectM(id) { Tree.centreOnNode(id); Tree.highlight(id); }
 
-  // ── الإدارة ───────────────────────────────────────────────────────────────
+  // ── الإدارة ──
   function _openAdmin()  { $('adminBack').classList.add('on'); }
   function _closeAdmin() { $('adminBack').classList.remove('on'); }
-
   function _adminLogin() {
-    if ($('adminPw').value === CONFIG.ADMIN_PASSWORD) {
-      _adminAuth = true;
-      $('adminLogin').style.display   = 'none';
-      $('adminContent').style.display = '';
-      _loadAdminData();
-      toast('✅ مرحباً بك يا مدير');
-    } else {
-      toast('❌ كلمة المرور غير صحيحة');
-    }
+    if($('adminPw').value===CONFIG.ADMIN_PASSWORD){
+      _auth=true;
+      $('adminLogin').style.display='none';
+      $('adminContent').style.display='';
+      _loadAdmin(); toast('✅ مرحباً يا مدير');
+    } else { toast('❌ كلمة المرور غير صحيحة'); }
   }
-
-  async function _loadAdminData() {
-    $('atChildren').innerHTML = '<p class="empty-state">جاري التحميل…</p>';
-    $('atUpdates').innerHTML  = '<p class="empty-state">جاري التحميل…</p>';
+  async function _loadAdmin() {
+    $('atChildren').innerHTML='<p class="empty-state">جاري التحميل…</p>';
+    $('atUpdates').innerHTML ='<p class="empty-state">جاري التحميل…</p>';
     try {
-      const [reqs, upds] = await Promise.all([Sheets.getPendingReqs(), Sheets.getPendingUpds()]);
+      const [reqs,upds]=await Promise.all([Sheets.getPendingReqs(),Sheets.getPendingUpds()]);
       _renderReqs(reqs.filter(r=>r.status==='pending'));
       _renderUpds(upds.filter(r=>r.status==='pending'));
-    } catch(e) {
-      $('atChildren').innerHTML = `<p class="empty-state">خطأ: ${e.message}</p>`;
-    }
+    } catch(e){ $('atChildren').innerHTML=`<p class="empty-state">خطأ: ${e.message}</p>`; }
   }
-
   function _renderReqs(list) {
-    if (!list.length) { $('atChildren').innerHTML = '<p class="empty-state">لا توجد طلبات.</p>'; return; }
-    $('atChildren').innerHTML = list.map(r => {
-      const p = Tree.getMember(r.parent_id);
+    if(!list.length){ $('atChildren').innerHTML='<p class="empty-state">لا توجد طلبات.</p>'; return; }
+    $('atChildren').innerHTML=list.map(r=>{
+      const p=Tree.getMember(r.parent_id);
       return `<div class="req-card" id="rc_${r.request_id}">
         <div class="req-title">إضافة: <strong>${r.child_name}</strong></div>
-        <div class="req-meta">
-          الأب/الأم: ${p?p.name:r.parent_id}<br/>
-          سنة الميلاد: ${r.birth_date||'—'}<br/>
-          مقدّم الطلب: ${r.submitted_by||'—'}
-        </div>
+        <div class="req-meta">الأب: ${p?p.name:r.parent_id}<br/>سنة: ${r.birth_date||'—'}<br/>مقدّم: ${r.submitted_by||'—'}</div>
         <div class="req-btns">
           <button class="btn-ok" onclick="UI.approveChild('${r.request_id}')">✓ موافقة</button>
           <button class="btn-no" onclick="UI.rejectChild('${r.request_id}')">✕ رفض</button>
@@ -592,19 +516,17 @@ const UI = (() => {
       </div>`;
     }).join('');
   }
-
   function _renderUpds(list) {
-    if (!list.length) { $('atUpdates').innerHTML = '<p class="empty-state">لا توجد طلبات.</p>'; return; }
-    $('atUpdates').innerHTML = list.map(u => `
+    if(!list.length){ $('atUpdates').innerHTML='<p class="empty-state">لا توجد طلبات.</p>'; return; }
+    $('atUpdates').innerHTML=list.map(u=>`
       <div class="req-card" id="ru_${u.request_id}">
         <div class="req-title">تعديل: <strong>${u.member_name}</strong></div>
         <div class="req-meta">
-          ${u.birth_date?`سنة الميلاد: ${u.birth_date}<br/>`:''}
-          ${u.phone?`الهاتف: ${u.phone}<br/>`:''}
-          ${u.address?`العنوان: ${u.address}<br/>`:''}
-          ${u.job?`المهنة: ${u.job}<br/>`:''}
-          ${u.note?`ملاحظة: ${u.note}<br/>`:''}
-          مقدّم الطلب: ${u.submitted_by||'—'}
+          ${u.birth_date?`سنة: ${u.birth_date}<br/>`:''}
+          ${u.phone?`هاتف: ${u.phone}<br/>`:''}
+          ${u.address?`عنوان: ${u.address}<br/>`:''}
+          ${u.job?`مهنة: ${u.job}<br/>`:''}
+          مقدّم: ${u.submitted_by||'—'}
         </div>
         <div class="req-btns">
           <button class="btn-ok" onclick="UI.approveUpdate('${u.request_id}')">✓ موافقة</button>
@@ -612,168 +534,127 @@ const UI = (() => {
         </div>
       </div>`).join('');
   }
-
-  async function _doApprove(id, fn, elId) {
-    if (_proc.has(id)) return;
-    _proc.add(id);
-    const card = $(elId);
-    if (card) card.querySelectorAll('button').forEach(b=>{b.disabled=true;b.style.opacity='.5';});
-    try { await fn(id); $(elId)?.remove(); toast('✅ تم'); App.reload(); }
-    catch(e) { toast('❌ '+e.message); if(card) card.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='';});}
-    finally { _proc.delete(id); }
+  async function _proc2(id,fn,el){ // منع التكرار
+    if(_proc.has(id)) return; _proc.add(id);
+    const card=document.getElementById(el);
+    if(card) card.querySelectorAll('button').forEach(b=>{b.disabled=true;b.style.opacity='.5';});
+    try{ await fn(id); document.getElementById(el)?.remove(); toast('✅ تم'); App.reload(); }
+    catch(e){ toast('❌ '+e.message);
+      if(card) card.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='';});
+    } finally{ _proc.delete(id); }
   }
+  const approveChild  = id=>_proc2(id,Sheets.approveChild,  `rc_${id}`);
+  const rejectChild   = id=>_proc2(id,i=>Sheets.rejectReq(i,'pending_requests'),`rc_${id}`);
+  const approveUpdate = id=>_proc2(id,Sheets.approveUpdate, `ru_${id}`);
+  const rejectUpdate  = id=>_proc2(id,Sheets.rejectUpd,     `ru_${id}`);
 
-  const approveChild  = id => _doApprove(id, Sheets.approveChild,  `rc_${id}`);
-  const rejectChild   = id => _doApprove(id, i => Sheets.rejectReq(i,'pending_requests'), `rc_${id}`);
-  const approveUpdate = id => _doApprove(id, Sheets.approveUpdate, `ru_${id}`);
-  const rejectUpdate  = id => _doApprove(id, Sheets.rejectUpd,     `ru_${id}`);
-
-  // ── PWA ───────────────────────────────────────────────────────────────────
-  let _deferredInstall = null;
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _deferredInstall = e; });
-
-  function _setupPWA() {
-    if (localStorage.getItem('pwa_shown')) return;
-    const sc = $('installScreen');
-    sc.style.display = 'flex';
-
-    $('installBtn').onclick = async () => {
-      if (_deferredInstall) {
-        _deferredInstall.prompt();
-        const { outcome } = await _deferredInstall.userChoice;
-        _deferredInstall = null;
-        if (outcome === 'accepted') { localStorage.setItem('pwa_shown','1'); sc.style.display='none'; }
-        else $('installNote').textContent = 'يمكنك التثبيت لاحقاً من قائمة المتصفح';
+  // ── PWA ──
+  let _dPWA=null;
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_dPWA=e;});
+  function _pwa(){
+    if(localStorage.getItem('pwa_ok')) return;
+    const sc=document.getElementById('installScreen');
+    sc.style.display='flex';
+    document.getElementById('installBtn').onclick=async()=>{
+      if(_dPWA){ _dPWA.prompt(); const{outcome}=await _dPWA.userChoice; _dPWA=null;
+        if(outcome==='accepted'){ localStorage.setItem('pwa_ok','1'); sc.style.display='none'; }
+        else document.getElementById('installNote').textContent='يمكنك التثبيت لاحقاً من قائمة المتصفح';
       } else {
-        $('installNote').innerHTML = '<strong>iPhone:</strong> اضغط ⬆️ ثم «إضافة إلى الشاشة الرئيسية»';
+        document.getElementById('installNote').innerHTML='<strong>iPhone:</strong> اضغط ⬆️ ثم «إضافة إلى الشاشة الرئيسية»';
       }
     };
-    $('installSkip').onclick = () => { localStorage.setItem('pwa_shown','1'); sc.style.display='none'; };
+    document.getElementById('installSkip').onclick=()=>{localStorage.setItem('pwa_ok','1');sc.style.display='none';};
   }
 
-  // ── التهيئة ───────────────────────────────────────────────────────────────
+  // ── التهيئة ──
   function init() {
-    _setupPWA();
-
-    // لوحة التفاصيل
-    $('closeDetail').onclick   = _closeDetail;
-    $('panelOverlay').onclick  = _closeDetail;
-
-    // نافذة النموذج
-    $('closeModal').onclick    = _closeModal;
-    $('modalBack').addEventListener('click', e => { if (e.target===$('modalBack')) _closeModal(); });
-
-    // القائمة المنبثقة
-    $('ctxView').onclick    = () => { const id=_curId; _hideMenu(); if(id) _openDetail(id); };
-    $('ctxChild').onclick   = () => { const id=_curId; _hideMenu(); if(id) _formAddChild(id); };
-    $('ctxEdit').onclick    = () => { const id=_curId; _hideMenu(); if(id) _formEditDetails(id); };
-    $('ctxLineage').onclick = () => { const id=_curId; _hideMenu(); if(id) _showLineage(id); };
-
-    document.addEventListener('click',     e => { if (!e.target.closest('#ctxMenu') && !e.target.closest('.node-hit')) _hideMenu(); });
-    document.addEventListener('touchstart',e => { if (!e.target.closest('#ctxMenu') && !e.target.closest('.node-hit')) _hideMenu(); }, {passive:true});
-
-    // الإدارة
-    $('btnAdmin').onclick     = _openAdmin;
-    $('closeAdmin').onclick   = _closeAdmin;
-    $('adminLoginBtn').onclick= _adminLogin;
-    $('adminBack').addEventListener('click', e => { if (e.target===$('adminBack')) _closeAdmin(); });
-    $('adminPw').addEventListener('keydown', e => { if(e.key==='Enter') _adminLogin(); });
-    document.querySelectorAll('.atab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.atab').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        $('atChildren').style.display = btn.dataset.tab==='children' ? '' : 'none';
-        $('atUpdates').style.display  = btn.dataset.tab==='updates'  ? '' : 'none';
-      });
-    });
-
-    // البحث
-    let timer;
-    $('searchInput').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(_doSearch, 260); });
-    $('searchInput').addEventListener('keydown', e => { if(e.key==='Enter'){clearTimeout(timer);_doSearch();} if(e.key==='Escape') _hideDrop(); });
-    $('searchBtn').addEventListener('click', _doSearch);
-    document.addEventListener('mousedown', e => { if (!e.target.closest('.search-wrap')) _hideDrop(); });
-
-    // أزرار الأسفل
-    $('btnRefresh').onclick = async () => {
+    _pwa();
+    $('closeDetail').onclick  =$('panelOverlay').onclick=_closeDetail;
+    $('closeModal').onclick   =_closeModal;
+    $('modalBack').addEventListener('click',e=>{if(e.target===$('modalBack'))_closeModal();});
+    $('ctxView').onclick    =()=>{ const id=_cur;_hideMenu(); if(id) _openDetail(id); };
+    $('ctxChild').onclick   =()=>{ const id=_cur;_hideMenu(); if(id) _formChild(id); };
+    $('ctxEdit').onclick    =()=>{ const id=_cur;_hideMenu(); if(id) _formEdit(id); };
+    $('ctxLineage').onclick =()=>{ const id=_cur;_hideMenu(); if(id) _formLineage(id); };
+    document.addEventListener('click',   e=>{ if(!e.target.closest('#ctxMenu')&&!e.target.closest('.nh')) _hideMenu(); });
+    document.addEventListener('touchstart',e=>{ if(!e.target.closest('#ctxMenu')&&!e.target.closest('.nh')) _hideMenu(); },{passive:true});
+    $('btnAdmin').onclick    =_openAdmin;
+    $('closeAdmin').onclick  =_closeAdmin;
+    $('adminLoginBtn').onclick=_adminLogin;
+    $('adminBack').addEventListener('click',e=>{if(e.target===$('adminBack'))_closeAdmin();});
+    $('adminPw').addEventListener('keydown',e=>{if(e.key==='Enter')_adminLogin();});
+    document.querySelectorAll('.atab').forEach(btn=>{ btn.addEventListener('click',()=>{
+      document.querySelectorAll('.atab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      $('atChildren').style.display=btn.dataset.tab==='children'?'':'none';
+      $('atUpdates').style.display =btn.dataset.tab==='updates' ?'':'none';
+    });});
+    let tmr;
+    $('searchInput').addEventListener('input',()=>{ clearTimeout(tmr); tmr=setTimeout(_doSearch,260); });
+    $('searchInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){clearTimeout(tmr);_doSearch();} if(e.key==='Escape')_hideDrop(); });
+    $('searchBtn').addEventListener('click',_doSearch);
+    document.addEventListener('mousedown',e=>{ if(!e.target.closest('.search-wrap')) _hideDrop(); });
+    $('btnRefresh').onclick=async()=>{
       $('btnRefresh').textContent='⏳'; $('btnRefresh').disabled=true;
       await App.reload();
       $('btnRefresh').textContent='🔄 تحديث'; $('btnRefresh').disabled=false;
     };
-    $('btnStats').onclick  = _showStats;
-    $('btnCenter').onclick = () => Tree.centreOnRoot();
+    $('btnStats').onclick =$('btnStats').onclick=_showStats;
+    $('btnCenter').onclick=()=>Tree.centreOnRoot();
   }
 
-  return { init, onNodeClick, toast, approveChild, rejectChild, approveUpdate, rejectUpdate };
+  return { init,onNodeClick,toast,approveChild,rejectChild,approveUpdate,rejectUpdate };
 })();
+
 /**
- * app.js — نقطة الدخول
+ * app.js
  */
 const App = (() => {
-  const KEY = 'shajarah_members_v2';
+  const KEY='shaj_v5';
+  const save=m=>{ try{localStorage.setItem(KEY,JSON.stringify(m));}catch(e){} };
+  const load=()=>{ try{const d=localStorage.getItem(KEY);return d?JSON.parse(d):null;}catch(e){return null;} };
 
-  function _save(m) { try { localStorage.setItem(KEY, JSON.stringify(m)); } catch(e){} }
-  function _load()  { try { const d=localStorage.getItem(KEY); return d?JSON.parse(d):null; } catch(e){ return null; } }
-
-  function _hideLoader() {
-    const el = document.getElementById('loader');
+  function _hide() {
+    const el=document.getElementById('loader');
     el.classList.add('out');
-    setTimeout(() => el.remove(), 600);
+    setTimeout(()=>el.remove(),600);
   }
 
-  async function _fetchAndRender(showLoader = true) {
+  async function _fetch() {
     try {
-      const members = await Sheets.getMembers();
-      if (members.length) {
-        _save(members);
-        Tree.render(members);
-        return true;
-      }
-    } catch(e) {
-      console.warn('fetch error:', e.message);
-    }
+      const ms=await Sheets.getMembers();
+      if(ms.length){ save(ms); Tree.render(ms); return true; }
+    } catch(e){ console.warn(e.message); }
     return false;
   }
 
-  async function load() {
-    const cached = _load();
-
-    if (cached && cached.length) {
-      // عرض البيانات المحفوظة فوراً
-      Tree.render(cached);
-      _hideLoader();
-      // تحديث في الخلفية
-      _fetchAndRender(false).then(ok => { if(ok) UI.toast('🔄 تم تحديث البيانات'); });
+  async function load2() {
+    const cached=load();
+    if(cached&&cached.length){
+      Tree.render(cached); _hide();
+      _fetch().then(ok=>{ if(ok) UI.toast('🔄 تم تحديث البيانات'); });
     } else {
-      // أول مرة — تحميل من الشبكة
-      document.getElementById('loaderMsg').textContent = 'جاري التحميل من الشبكة…';
-      const ok = await _fetchAndRender();
-      if (!ok) {
-        document.getElementById('loaderMsg').textContent = '⚠️ لا يوجد اتصال ولا بيانات محفوظة';
-        setTimeout(_hideLoader, 2500);
-      } else {
-        _hideLoader();
-      }
+      document.getElementById('loaderMsg').textContent='جاري التحميل…';
+      const ok=await _fetch();
+      if(!ok) {
+        document.getElementById('loaderMsg').textContent='⚠️ لا يوجد اتصال';
+        setTimeout(_hide,2500);
+      } else { _hide(); }
     }
   }
 
   async function reload() {
-    const ok = await _fetchAndRender(false);
-    if (!ok) UI.toast('⚠️ تعذّر التحديث');
+    const ok=await _fetch();
+    if(!ok) UI.toast('⚠️ تعذّر التحديث');
   }
 
   function init() {
     UI.init();
-    load();
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
-          .catch(e => console.warn('SW:', e));
-      });
-    }
+    load2();
+    if('serviceWorker' in navigator)
+      window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded',init);
   return { reload };
 })();
