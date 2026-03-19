@@ -36,13 +36,8 @@
   </header>
 
   <!-- ===== TREE CANVAS AREA ===== -->
-  <div class="tree-container" id="treeContainer">
-    <!-- treeWrapper: SVG والعقد في حاوية واحدة ← يحل انفصال الخطوط عند الزوم -->
-    <div id="treeWrapper" class="tree-wrapper">
-      <svg id="linksSvg" class="links-svg"></svg>
-      <div id="nodesContainer" class="nodes-container"></div>
-    </div>
-  </div>
+  <!-- ===== منطقة الشجرة — D3 يُنشئ المحتوى هنا ===== -->
+  <div class="tree-container" id="treeContainer"></div>
 
   <!-- ===== LOADING OVERLAY ===== -->
   <div class="loading-overlay" id="loadingOverlay">
@@ -93,6 +88,7 @@
       <div class="admin-login" id="adminLogin">
         <input type="password" id="adminPassword" placeholder="Enter admin password" class="form-input" />
         <button class="btn-primary" id="adminLoginBtn">دخول</button>
+        <p class="admin-hint">كلمة المرور الافتراضية: <strong>admin123</strong></p>
       </div>
       <div class="admin-content" id="adminContent" style="display:none">
         <div class="admin-tabs">
@@ -114,6 +110,8 @@
     <button id="statsBtn">📊 إحصائيات</button>
   </div>
 
+  <!-- D3.js للتخطيط الرادیالي -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
   <!-- Scripts -->
   <script src="js/config.js"></script>
   <script src="js/sheets.js"></script>
