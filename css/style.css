@@ -546,8 +546,7 @@ body {
    ═══════════════════════════════════ */
 
 
-#refreshBtn:hover,
-#statsBtn:hover { border-color: var(--accent); background: var(--node-hover); }
+
 
 .zoom-controls { display: none !important; }
 
@@ -565,112 +564,93 @@ body {
 }
 
 /* ════════════════════════════════════════════════════════
-   الشجرة — خلفية بيضاء، عقد بيضاوية خشبية، أغصان عريضة
+   شجرة رادیالیة — D3.js
    ════════════════════════════════════════════════════════ */
 
+/* حاوية الشجرة */
 .tree-container {
   position: fixed;
   top: 56px; left: 0; right: 0; bottom: 0;
   overflow: hidden;
-  cursor: grab;
+  background: linear-gradient(160deg, #e8f4f0 0%, #f5f0e8 50%, #eef5e8 100%);
   touch-action: none;
-  background: #ffffff;
-}
-.tree-container.grabbing { cursor: grabbing; }
-
-.tree-wrapper {
-  position: absolute;
-  top: 0; left: 0;
-  transform-origin: 0 0;
-  will-change: transform;
 }
 
-.links-svg {
-  position: absolute;
-  top: 0; left: 0;
-  overflow: visible;
-  pointer-events: none;
-  z-index: 1;
+/* ── SVG الداخلي ── */
+.tree-container svg {
+  display: block;
+  cursor: grab;
+}
+.tree-container svg.grabbing { cursor: grabbing; }
+
+/* ── الأغصان ── */
+path.tree-link {
+  fill: none;
+  stroke: #6b3f18;
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.65;
+  transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+}
+path.tree-link.lineage-link {
+  stroke: #e05000 !important;
+  stroke-width: 5 !important;
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 5px rgba(224,80,0,0.7));
 }
 
-.nodes-container {
-  position: absolute;
-  top: 0; left: 0;
-  z-index: 2;
+/* ── مجموعة العقدة ── */
+g.tree-node-g { cursor: pointer; }
+
+/* البيضاوية الخشبية */
+g.tree-node-g ellipse.node-oval {
+  fill: url(#woodGrad);
+  stroke: #c49a60;
+  stroke-width: 2;
+  transition: filter 0.15s, stroke 0.15s;
 }
 
-/* ── البيضاوية ── */
-.tree-node {
-  position: absolute;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: radial-gradient(ellipse at 38% 32%,
-    #d4b896 0%,
-    #b08050 38%,
-    #8a5c2e 72%,
-    #6b3f18 100%
-  );
-  border: 2.5px solid #c49a60;
-  box-shadow:
-    inset 0 2px 5px rgba(255,255,255,0.3),
-    inset 0 -3px 5px rgba(0,0,0,0.4),
-    0 3px 8px rgba(0,0,0,0.18);
-  transition: transform 0.12s, box-shadow 0.12s;
-  padding: 0 4px;
+/* hover */
+g.tree-node-g:hover ellipse.node-oval {
+  stroke: #e8b000;
+  stroke-width: 3;
+  filter: brightness(1.15) drop-shadow(0 3px 6px rgba(0,0,0,0.3));
 }
-.tree-node:hover {
-  transform: scale(1.12);
-  box-shadow:
-    inset 0 2px 5px rgba(255,255,255,0.35),
-    0 5px 16px rgba(160,100,40,0.4);
+
+/* تمييز بحث */
+g.tree-node-g.highlighted ellipse.node-oval {
+  stroke: #e8b000;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 10px rgba(232,176,0,0.8));
 }
-.tree-node.highlighted {
-  border-color: #e8b000;
-  box-shadow:
-    inset 0 2px 5px rgba(255,255,255,0.3),
-    0 0 0 3px #ffe066,
-    0 0 18px rgba(255,224,80,0.7);
-  transform: scale(1.14);
-}
-.tree-node.lineage-node {
-  border-color: #ff6b35;
-  box-shadow:
-    0 0 0 3px #ff6b35,
-    0 0 18px rgba(255,107,53,0.6);
+
+/* مسار الأصل */
+g.tree-node-g.lineage-node ellipse.node-oval {
+  stroke: #e05000;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 10px rgba(224,80,0,0.7));
 }
 
 /* الاسم */
-.node-text {
+g.tree-node-g text.node-label {
   font-family: var(--font);
-  font-size: 0.66rem;
-  font-weight: 900;
-  color: #fff;
-  text-align: center;
-  line-height: 1.15;
-  word-break: break-word;
-  white-space: normal;
+  font-size: 11px;
+  font-weight: 800;
+  fill: #fff;
+  text-anchor: middle;
+  dominant-baseline: central;
   pointer-events: none;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+  text-shadow: none;
+  paint-order: stroke;
+  stroke: rgba(0,0,0,0.5);
+  stroke-width: 2px;
 }
 
-/* ── الأغصان ── */
-.tree-link {
-  fill: none;
-  stroke: #5c3010;
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.7;
-  transition: stroke 0.3s, stroke-width 0.3s;
-}
-.tree-link.lineage-link {
-  stroke: #ff6b35 !important;
-  stroke-width: 6 !important;
-  opacity: 1 !important;
-  filter: drop-shadow(0 0 5px rgba(255,107,53,0.8));
+/* منطقة النقر — شفافة */
+g.tree-node-g ellipse.node-hitbox {
+  fill: transparent;
+  stroke: none;
+  cursor: pointer;
 }
 
 /* ── أزرار الأسفل ── */
@@ -683,7 +663,7 @@ body {
   gap: 8px;
 }
 #refreshBtn, #statsBtn {
-  padding: 9px 15px;
+  padding: 9px 16px;
   background: #6b3f18;
   border: none;
   border-radius: 20px;
@@ -696,9 +676,8 @@ body {
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
   transition: background 0.2s, transform 0.1s;
 }
-#refreshBtn:hover, #statsBtn:hover {
-  background: #8a5c2e;
-  transform: scale(1.05);
-}
+#refreshBtn:hover, #statsBtn:hover { background: #8a5c2e; transform: scale(1.05); }
 #refreshBtn:disabled { opacity: 0.6; cursor: wait; }
 .zoom-controls { display: none !important; }
+
+/* إضافة gradient خشبي عبر SVG defs (يُعرَّف في JS) */
