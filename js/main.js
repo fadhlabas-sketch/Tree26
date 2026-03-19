@@ -4,7 +4,7 @@
  */
 const CONFIG = {
   // رابط Apps Script بعد النشر
-  APPS_SCRIPT_URL: 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzZHg589-B2f2c1h7xToXDufDw9TCFuIJJWJwPmeUEpsSjJgTad0HZAbdDcrH-Wmw/exec',
 
   // كلمة مرور المدير
   ADMIN_PASSWORD: 'admin123',
