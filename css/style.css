@@ -297,77 +297,69 @@ body { background: var(--bg); color: var(--text); direction: rtl; user-select: n
   .detail-panel { width: 100%; right: -100%; }
 }
 
-/* ════════════════════════════════════════════════════════
-   شجرة أفقية — عقد بيضاوية + أغصان منحنية
-   ════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════
+   شجرة أفقية — مناسبة لـ 197 شخص
+   ════════════════════════════════════════════════ */
 
 /* خلفية الشجرة */
 .tree-wrap {
-  background: linear-gradient(160deg, #f0f8ec 0%, #f5f0e4 50%, #ede8da 100%);
+  background: linear-gradient(150deg, #eef6e8 0%, #f4f0e4 55%, #ece4d4 100%);
 }
 
 /* ── الأغصان ── */
-.branch {
+path.br {
   fill: none;
-  stroke: #5c3010;
+  stroke: #6b4010;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.7;
+  opacity: 0.72;
   transition: stroke .3s, opacity .3s;
 }
-.branch.lineage {
-  stroke: #d04000 !important;
-  stroke-width: 5 !important;
+path.br.ln {
+  stroke: #c83000 !important;
+  stroke-width: 4.5 !important;
   opacity: 1 !important;
-  filter: drop-shadow(0 0 4px rgba(208,64,0,.65));
+  filter: drop-shadow(0 0 4px rgba(200,48,0,.6));
 }
 
-/* ── البيضاوية (rect + rx) ── */
-.node-rect {
-  fill: url(#woodG);
-  stroke: #c49a50;
-  stroke-width: 1.8;
+/* ── البيضاوية ── */
+rect.no {
+  stroke: #c8a050;
+  stroke-width: 1.5;
   transition: stroke .15s, stroke-width .15s, filter .15s;
-  filter: url(#sh);
 }
-
-/* hover */
-.node-g:hover .node-rect {
-  stroke: #e8a820;
+g.ng:hover rect.no {
+  stroke: #e8b820;
   stroke-width: 2.5;
-  filter: url(#sh) brightness(1.12);
+  filter: url(#sh) brightness(1.1);
 }
-
-/* تمييز بحث */
-.node-g.highlighted .node-rect {
-  stroke: #e8a820;
+g.ng.hl rect.no {
+  stroke: #e8b820;
   stroke-width: 3;
-  filter: drop-shadow(0 0 10px rgba(232,168,32,.85));
+  filter: drop-shadow(0 0 9px rgba(232,184,32,.9));
 }
-
-/* مسار الأصل */
-.node-g.lineage .node-rect {
-  stroke: #d04000;
+g.ng.ln rect.no {
+  stroke: #c83000;
   stroke-width: 3;
-  filter: drop-shadow(0 0 10px rgba(208,64,0,.7));
+  filter: drop-shadow(0 0 9px rgba(200,48,0,.7));
 }
 
 /* ── نص الاسم ── */
-.node-label {
+text.nl {
   font-family: var(--font);
-  font-size: 10.5px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 900;
   fill: #fff;
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
   paint-order: stroke;
-  stroke: rgba(0,0,0,.5);
+  stroke: rgba(0,0,0,.55);
   stroke-width: 2.5px;
 }
 
-/* ── منطقة النقر ── */
-.node-hit {
+/* ── منطقة نقر شفافة ── */
+rect.nh {
   fill: transparent;
   stroke: none;
   cursor: pointer;
