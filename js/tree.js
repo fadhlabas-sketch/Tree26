@@ -1,42 +1,31 @@
 /**
- * tree.js — شجرة عائلة رادیالیة
- * ================================
- * D3.js radial tree: الجذر في المنتصف، الفروع تمتد يميناً ويساراً
+ * tree.js — محرك الشجرة الرادیالیة (D3.js)
+ * ============================================
+ * الجذر في المنتصف، الفروع تمتد في كل الاتجاهات
  */
-
 const Tree = (() => {
 
-  let _members  = [];
-  let _nodeMap  = {};
-  let _svg      = null;   // D3 svg selection
-  let _gMain    = null;   // الـ group الرئيسي القابل للتحريك
+  let _members = [], _map = {}, _svg = null, _g = null, _zoom = null, _initT = null;
 
   // ── بناء الخريطة ──────────────────────────────────────────────────────────
   function _buildMap(members) {
-    _nodeMap = {};
-    members.forEach(m => (_nodeMap[m.id] = m));
+    _map = {};
+    members.forEach(m => (_map[m.id] = m));
   }
 
-  // ── تحويل المصفوفة الخطية إلى هيكل هرمي لـ D3 ────────────────────────────
-  function _buildHierarchy(members) {
-    // الجذر
-    const roots = members.filter(m => !m.parent_id || !_nodeMap[m.parent_id]);
-    const root  = roots[0] || members[0];
-    if (!root) return null;
+  // ── تحويل المصفوفة إلى هرمي ───────────────────────────────────────────────
+  function _toHierarchy(members) {
+    const roots = members.filter(m => !m.parent_id || !_map[m.parent_id]);
+    if (!roots.length) return null;
 
-    // بناء شجرة مرجعية
-    const nodeById = {};
+    const nodes = {};
+    members.forEach(m => (nodes[m.id] = { ...m, children: [] }));
     members.forEach(m => {
-      nodeById[m.id] = { id: m.id, name: m.name, data: m, children: [] };
+      if (m.parent_id && nodes[m.parent_id]) nodes[m.parent_id].children.push(nodes[m.id]);
     });
-
-    members.forEach(m => {
-      if (m.parent_id && nodeById[m.parent_id]) {
-        nodeById[m.parent_id].children.push(nodeById[m.id]);
-      }
-    });
-
-    return nodeById[root.id];
+    // إذا أكثر من جذر، أنشئ جذراً وهمياً
+    if (roots.length === 1) return nodes[roots[0].id];
+    return { id: '__root__', name: '', children: roots.map(r => nodes[r.id]) };
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -46,225 +35,155 @@ const Tree = (() => {
     _members = members;
     _buildMap(members);
 
-    const container = document.getElementById('treeContainer');
-    container.innerHTML = '';   // امسح كل شيء قديم
+    const wrap = document.getElementById('treeWrap');
+    wrap.innerHTML = '';
 
-    const W = container.clientWidth  || window.innerWidth;
-    const H = container.clientHeight || (window.innerHeight - 56);
+    const W = wrap.clientWidth  || window.innerWidth;
+    const H = wrap.clientHeight || (window.innerHeight - 100);
 
-    // ── D3 SVG ──
-    _svg = d3.select('#treeContainer')
-      .append('svg')
-      .attr('width',  W)
-      .attr('height', H)
-      .style('display', 'block');
+    // ── إنشاء SVG ──
+    _svg = d3.select('#treeWrap').append('svg')
+      .attr('width', W).attr('height', H);
 
-    // تعريف filter للظل
+    // ── تعاريف التدرج والظلال ──
     const defs = _svg.append('defs');
-    const filter = defs.append('filter').attr('id', 'shadow').attr('x', '-30%').attr('y', '-30%').attr('width', '160%').attr('height', '160%');
-    filter.append('feDropShadow').attr('dx', 0).attr('dy', 2).attr('stdDeviation', 3).attr('flood-color', 'rgba(0,0,0,0.22)');
 
-    // تدرج خشبي للبيضاويات
-    const grad = defs.append('radialGradient')
-      .attr('id', 'woodGrad')
-      .attr('cx', '38%').attr('cy', '35%')
-      .attr('r',  '65%');
-    grad.append('stop').attr('offset', '0%').attr('stop-color', '#d4b896');
-    grad.append('stop').attr('offset', '40%').attr('stop-color', '#a07040');
-    grad.append('stop').attr('offset', '75%').attr('stop-color', '#7a5020');
-    grad.append('stop').attr('offset', '100%').attr('stop-color', '#5c3010');
+    // تدرج خشبي للعقد
+    const rg = defs.append('radialGradient').attr('id', 'woodGrad')
+      .attr('cx', '38%').attr('cy', '32%').attr('r', '68%');
+    rg.append('stop').attr('offset', '0%')   .attr('stop-color', '#e0c090');
+    rg.append('stop').attr('offset', '35%')  .attr('stop-color', '#b07838');
+    rg.append('stop').attr('offset', '72%')  .attr('stop-color', '#7a4c18');
+    rg.append('stop').attr('offset', '100%') .attr('stop-color', '#4a2800');
 
-    // ── حاوية رئيسية قابلة للتحريك ──
-    _gMain = _svg.append('g').attr('class', 'g-main');
+    // ظل
+    const fl = defs.append('filter').attr('id', 'drop')
+      .attr('x', '-40%').attr('y', '-40%').attr('width', '180%').attr('height', '180%');
+    fl.append('feDropShadow').attr('dx', 0).attr('dy', 2).attr('stdDeviation', 3).attr('flood-color', 'rgba(0,0,0,.25)');
 
-    // ── بناء الهيكل الهرمي ──
-    const hierarchyData = _buildHierarchy(members);
-    if (!hierarchyData) return;
+    // ── مجموعة رئيسية ──
+    _g = _svg.append('g').attr('class', 'tree-root');
 
-    const root = d3.hierarchy(hierarchyData, d => d.children.length ? d.children : null);
+    // ── بناء الهرم ──
+    const hierData = _toHierarchy(members);
+    if (!hierData) return;
 
-    // ── التخطيط الرادیالي ──
-    // نصف قطر يعتمد على عدد العقد
-    const nodeCount = root.descendants().length;
-    // كلما زادت العقد، زاد النصف القطر
-    const baseRadius = Math.min(W, H) * 0.42;
-    const radius     = Math.max(baseRadius, nodeCount * 2.2);
+    const root = d3.hierarchy(hierData, d => d.children && d.children.length ? d.children : null);
+    const count = root.descendants().length;
 
-    const treeLayout = d3.tree()
+    // النصف قطر: يكبر مع عدد الأعضاء
+    const minDim  = Math.min(W, H);
+    const radius  = Math.max(minDim * 0.44, Math.sqrt(count) * 28);
+
+    // تخطيط رادیالي
+    d3.tree()
       .size([2 * Math.PI, radius])
-      .separation((a, b) => (a.parent === b.parent ? 1 : 2) / a.depth);
-
-    treeLayout(root);
+      .separation((a, b) => (a.parent === b.parent ? 1 : 1.4) / Math.max(1, a.depth))(root);
 
     // ── رسم الأغصان ──
-    const linkGroup = _gMain.append('g').attr('class', 'links-group');
-
-    linkGroup.selectAll('path.tree-link')
-      .data(root.links())
-      .enter()
-      .append('path')
-      .attr('class', 'tree-link')
+    _g.append('g').attr('class', 'branches')
+      .selectAll('path')
+      .data(root.links().filter(d => d.source.data.id !== '__root__'))
+      .enter().append('path')
+      .attr('class', 'branch')
       .attr('data-parent', d => d.source.data.id)
       .attr('data-child',  d => d.target.data.id)
-      .attr('d', d3.linkRadial()
-        .angle(d => d.x)
-        .radius(d => d.y)
-      );
+      .attr('stroke-width', d => Math.max(1.2, 4.5 - d.source.depth * 0.8))
+      .attr('d', d3.linkRadial().angle(d => d.x).radius(d => d.y));
 
-    // ── رسم مجموعات العقد ──
-    const nodeGroup = _gMain.append('g').attr('class', 'nodes-group');
-
-    const node = nodeGroup.selectAll('g.tree-node-g')
-      .data(root.descendants())
-      .enter()
-      .append('g')
-      .attr('class', 'tree-node-g')
+    // ── رسم العقد ──
+    const OW = 66, OH = 27;
+    const ng = _g.append('g').attr('class', 'nodes')
+      .selectAll('g.node-g')
+      .data(root.descendants().filter(d => d.data.id !== '__root__'))
+      .enter().append('g')
+      .attr('class', 'node-g')
       .attr('data-id', d => d.data.id)
       .attr('transform', d => {
-        const px = d.y * Math.cos(d.x - Math.PI / 2);
-        const py = d.y * Math.sin(d.x - Math.PI / 2);
-        return `translate(${px},${py})`;
+        const x = d.y * Math.cos(d.x - Math.PI / 2);
+        const y = d.y * Math.sin(d.x - Math.PI / 2);
+        return `translate(${x},${y})`;
       });
 
-    // البيضاوية
-    const OW = 68, OH = 28;
-    node.append('ellipse')
-      .attr('rx', OW / 2)
-      .attr('ry', OH / 2)
-      .attr('class', 'node-oval')
-      .style('filter', 'url(#shadow)');
+    ng.append('ellipse').attr('class', 'node-oval')
+      .attr('rx', OW / 2).attr('ry', OH / 2)
+      .style('filter', 'url(#drop)');
 
-    // النص
-    node.append('text')
-      .attr('class', 'node-label')
-      .attr('dy', '0.35em')
-      .text(d => d.data.name);
+    ng.append('text').attr('class', 'node-label')
+      .attr('dy', '.35em')
+      .text(d => d.data.name || '');
 
-    // منطقة نقر شفافة فوق كل شيء
-    node.append('ellipse')
-      .attr('rx', OW / 2 + 4)
-      .attr('ry', OH / 2 + 4)
-      .attr('class', 'node-hitbox')
-      .on('click',     function(event, d) { _onNodeClick(event, d.data.id); })
-      .on('touchend',  function(event, d) { event.preventDefault(); _onNodeClick(event, d.data.id); });
+    // منطقة نقر موسّعة
+    ng.append('ellipse').attr('class', 'node-hit')
+      .attr('rx', OW / 2 + 6).attr('ry', OH / 2 + 6)
+      .on('click',    function(e, d) { e.stopPropagation(); UI.onNodeClick(d.data.id, e.clientX, e.clientY); })
+      .on('touchend', function(e, d) { e.preventDefault(); e.stopPropagation();
+        const t = e.changedTouches[0];
+        UI.onNodeClick(d.data.id, t.clientX, t.clientY);
+      });
 
-    // ── توسيط ومحاذاة ──
-    _centerTree(W, H, root, radius);
+    // ── ضبط العرض التلقائي ──
+    _autoFit(W, H, root);
 
-    // ── تفعيل السحب والتكبير ──
-    _initZoom(W, H);
-    _attachButtons();
+    // ── تفعيل zoom/pan ──
+    _zoom = d3.zoom().scaleExtent([0.05, 6])
+      .on('zoom', e => _g.attr('transform', e.transform));
+    _svg.call(_zoom).on('dblclick.zoom', null);
+    if (_initT) _svg.call(_zoom.transform, _initT);
   }
 
-  // ── توسيط الشجرة وملء الشاشة ─────────────────────────────────────────────
-  function _centerTree(W, H, root, radius) {
+  // ── توسيط وملء الشاشة ────────────────────────────────────────────────────
+  function _autoFit(W, H, root) {
     // حساب حدود الشجرة
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     root.descendants().forEach(d => {
+      if (d.data.id === '__root__') return;
       const px = d.y * Math.cos(d.x - Math.PI / 2);
       const py = d.y * Math.sin(d.x - Math.PI / 2);
-      if (px < minX) minX = px; if (px > maxX) maxX = px;
-      if (py < minY) minY = py; if (py > maxY) maxY = py;
+      if (px < x0) x0 = px; if (px > x1) x1 = px;
+      if (py < y0) y0 = py; if (py > y1) y1 = py;
     });
 
-    const treeW = maxX - minX + 80;
-    const treeH = maxY - minY + 80;
+    const pad   = 50;
+    const treeW = x1 - x0 + pad * 2;
+    const treeH = y1 - y0 + pad * 2;
+    const scale = Math.min((W - 16) / treeW, (H - 16) / treeH, 1.8);
 
-    // الزوم الذي يملأ الشاشة
-    const scale = Math.min((W - 20) / treeW, (H - 20) / treeH, 1.5);
+    const tx = W / 2 - ((x0 + x1) / 2) * scale;
+    const ty = H / 2 - ((y0 + y1) / 2) * scale;
 
-    // ترجمة لتمركز الشجرة
-    const tx = W / 2 - ((minX + maxX) / 2) * scale;
-    const ty = H / 2 - ((minY + maxY) / 2) * scale;
-
-    _gMain.attr('transform', `translate(${tx},${ty}) scale(${scale})`);
-
-    // حفظ التحويل الأولي لـ D3 zoom
-    _initialTransform = d3.zoomIdentity.translate(tx, ty).scale(scale);
-  }
-
-  let _initialTransform = null;
-  let _zoomBehavior     = null;
-
-  // ── تفعيل السحب والتكبير بـ D3 ───────────────────────────────────────────
-  function _initZoom(W, H) {
-    _zoomBehavior = d3.zoom()
-      .scaleExtent([0.05, 5])
-      .on('zoom', (event) => {
-        _gMain.attr('transform', event.transform);
-      });
-
-    _svg.call(_zoomBehavior);
-
-    // تطبيق التحويل الأولي
-    if (_initialTransform) {
-      _svg.call(_zoomBehavior.transform, _initialTransform);
-    }
-
-    // منع النقر المزدوج من التكبير (يتعارض مع النقر على العقد)
-    _svg.on('dblclick.zoom', null);
-  }
-
-  // ── حدث النقر على العقدة ─────────────────────────────────────────────────
-  function _onNodeClick(event, nodeId) {
-    event.stopPropagation();
-    // أرسل الحدث للـ interactions.js
-    const el = document.querySelector(`g.tree-node-g[data-id="${nodeId}"]`);
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      const cx   = rect.left + rect.width  / 2;
-      const cy   = rect.top  + rect.height / 2;
-      window._treeNodeClick && window._treeNodeClick(nodeId, cx, cy);
-    }
-  }
-
-  // ── أزرار الأسفل ──────────────────────────────────────────────────────────
-  function _attachButtons() {
-    const rBtn = document.getElementById('refreshBtn');
-    const sBtn = document.getElementById('statsBtn');
-    if (rBtn) rBtn.onclick = async () => {
-      rBtn.textContent = '⏳'; rBtn.disabled = true;
-      await App.reload();
-      rBtn.textContent = '🔄 تحديث'; rBtn.disabled = false;
-    };
-    if (sBtn) sBtn.onclick = _showStats;
+    _initT = d3.zoomIdentity.translate(tx, ty).scale(scale);
+    if (_svg && _zoom) _svg.call(_zoom.transform, _initT);
   }
 
   // ── تمركز على عقدة ───────────────────────────────────────────────────────
   function centreOnNode(id) {
-    const el = document.querySelector(`g.tree-node-g[data-id="${id}"]`);
-    if (!el || !_svg || !_zoomBehavior) return;
-    const ct = document.getElementById('treeContainer');
-    const W  = ct.clientWidth, H = ct.clientHeight;
-
-    // الحصول على موضع العقدة في مساحة SVG
-    const transform = d3.zoomTransform(_svg.node());
-    const bbox      = el.getBBox ? el.getBBox() : { x: 0, y: 0 };
-    // cx, cy في مساحة SVG بعد transform
-    const matrix = el.getScreenCTM();
-    if (!matrix) return;
-    const cx = matrix.e; const cy = matrix.f;
-
-    const scale = 1.5;
+    if (!_svg || !_zoom) return;
+    const el = document.querySelector(`g.node-g[data-id="${id}"]`);
+    if (!el) return;
+    const W = document.getElementById('treeWrap').clientWidth;
+    const H = document.getElementById('treeWrap').clientHeight;
+    const m = el.getScreenCTM();
+    if (!m) return;
+    const cx = m.e, cy = m.f;
+    const cur = d3.zoomTransform(_svg.node());
     _svg.transition().duration(500)
-      .call(_zoomBehavior.transform,
+      .call(_zoom.transform,
         d3.zoomIdentity
-          .translate(W / 2 - cx, H / 2 - cy)
-          .scale(scale)
+          .translate(cur.x + W / 2 - cx, cur.y + H / 2 - cy)
+          .scale(cur.k)
       );
   }
 
   function centreOnRoot() {
-    if (_initialTransform && _svg && _zoomBehavior) {
-      _svg.transition().duration(400)
-        .call(_zoomBehavior.transform, _initialTransform);
-    }
+    if (_svg && _zoom && _initT)
+      _svg.transition().duration(400).call(_zoom.transform, _initT);
   }
 
   // ── تمييز ─────────────────────────────────────────────────────────────────
   function highlight(id) {
-    d3.selectAll('g.tree-node-g').classed('highlighted', false);
-    d3.select(`g.tree-node-g[data-id="${id}"]`).classed('highlighted', true);
+    d3.selectAll('g.node-g').classed('highlighted', false);
+    d3.select(`g.node-g[data-id="${id}"]`).classed('highlighted', true);
   }
 
   function highlightLineage(id) {
@@ -273,56 +192,24 @@ const Tree = (() => {
     let cur = id;
     while (cur) {
       ancs.add(cur);
-      const m = _nodeMap[cur];
-      cur = m?.parent_id && _nodeMap[m.parent_id] ? m.parent_id : null;
+      const m = _map[cur];
+      cur = m?.parent_id && _map[m.parent_id] ? m.parent_id : null;
     }
-    ancs.forEach(aid => {
-      d3.select(`g.tree-node-g[data-id="${aid}"]`).classed('lineage-node', true);
-    });
-    d3.selectAll('path.tree-link').each(function(d) {
-      if (ancs.has(d.source.data.id) && ancs.has(d.target.data.id)) {
-        d3.select(this).classed('lineage-link', true);
-      }
+    ancs.forEach(a => d3.select(`g.node-g[data-id="${a}"]`).classed('lineage', true));
+    d3.selectAll('path.branch').each(function(d) {
+      if (ancs.has(d?.source?.data?.id) && ancs.has(d?.target?.data?.id))
+        d3.select(this).classed('lineage', true);
     });
     return ancs;
   }
 
   function clearLineage() {
-    d3.selectAll('.lineage-node').classed('lineage-node', false);
-    d3.selectAll('.lineage-link').classed('lineage-link', false);
+    d3.selectAll('.node-g.lineage').classed('lineage', false);
+    d3.selectAll('.branch.lineage').classed('lineage', false);
   }
 
-  // ── إحصائيات ──────────────────────────────────────────────────────────────
-  function _showStats() {
-    const total = _members.length;
-    const freq  = {};
-    _members.forEach(m => { const w = (m.name||'').split(/\s+/)[0]; if(w) freq[w]=(freq[w]||0)+1; });
-    const top3  = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3);
-    const bd = document.createElement('div');
-    bd.className = 'stats-backdrop';
-    bd.innerHTML = `<div class="stats-box">
-      <button class="stats-close" id="sc">✕</button>
-      <div class="stats-icon">📊</div>
-      <h2 class="stats-title">إحصائيات الشجرة</h2>
-      <div class="stats-total"><span class="stats-total-num">${total}</span><span class="stats-total-label">فرد في الشجرة</span></div>
-      <div class="stats-section-title">أكثر الأسماء تكراراً</div>
-      <div class="stats-names">${top3.map(([n,c],i)=>`<div class="stats-name-row"><span class="stats-rank">${['🥇','🥈','🥉'][i]}</span><span class="stats-name">${n}</span><span class="stats-count">${c} مرة</span></div>`).join('')}</div>
-      <div class="stats-credit">تم إنشاء هذا البرنامج من قبل<br/><strong>فضل عباس زينل</strong><br/><a href="tel:07501377753" class="stats-phone">📞 07501377753</a></div>
-    </div>`;
-    document.body.appendChild(bd);
-    document.getElementById('sc').onclick = () => bd.remove();
-    bd.addEventListener('click', e => { if(e.target===bd) bd.remove(); });
-  }
-
-  function getMember(id) { return _nodeMap[id]; }
+  function getMember(id) { return _map[id]; }
   function getMembers()  { return _members; }
 
-  // initPanZoom لا يفعل شيئاً هنا (D3 يتولى كل شيء في render)
-  function initPanZoom() {}
-
-  return {
-    render, centreOnNode, centreOnRoot,
-    highlight, highlightLineage, clearLineage,
-    getMember, getMembers, initPanZoom,
-  };
+  return { render, centreOnNode, centreOnRoot, highlight, highlightLineage, clearLineage, getMember, getMembers };
 })();
