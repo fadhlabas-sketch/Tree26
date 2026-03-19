@@ -377,8 +377,15 @@ const Interactions = (() => {
   // ════════════════════════════════════════════════════════
   //  ربط كل العقد بعد الرسم
   // ════════════════════════════════════════════════════════
+  // D3 يستدعي هذا عند النقر على أي عقدة
+  window._treeNodeClick = function(nodeId, x, y) {
+    _currentNodeId = nodeId;
+    _hideMenu();
+    _showMenu(nodeId, x, y);
+  };
+
   function attachAll() {
-    document.querySelectorAll('.tree-node').forEach(_attachNodeEvents);
+    // D3 يتولى الأحداث مباشرة — لا حاجة لربط يدوي
   }
 
   // ════════════════════════════════════════════════════════
