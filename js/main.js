@@ -108,6 +108,15 @@ const Tree = (() => {
     // ── حاوية رئيسية ──
     _g = _svg.append('g');
 
+    // طبقة شفافة تغطي كل الفراغ — تستقبل نقر الإخفاء
+    _g.append('rect')
+      .attr('class', 'bg-layer')
+      .attr('x', -50000).attr('y', -50000)
+      .attr('width', 100000).attr('height', 100000)
+      .attr('fill', 'transparent')
+      .on('click',    () => clearLineage())
+      .on('touchend', () => clearLineage());
+
     const hierData=_toHierarchy();
     if (!hierData) return;
 
@@ -197,8 +206,10 @@ const Tree = (() => {
       .on('zoom',e=>_g.attr('transform',e.transform));
     _svg.call(_zoom).on('dblclick.zoom',null);
 
-    // نقر على الفراغ → إخفاء مسار الأصل
-    _svg.on('click', () => clearLineage());
+    // نقر على SVG مباشرة (احتياطي)
+    _svg.on('click', function(e) {
+      if (e.target === _svg.node()) clearLineage();
+    });
     if (_initT) _svg.call(_zoom.transform,_initT);
   }
 
