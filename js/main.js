@@ -53,9 +53,15 @@ const Tree = (() => {
 
   let _members=[], _map={}, _svg=null, _g=null, _zoom=null, _initT=null;
 
-  // أبعاد العقدة
-  const NW = 70;  // عرض
-  const NH = 26;  // ارتفاع
+  // أبعاد العقدة الأساسية (تُحسب ديناميكياً حسب طول الاسم)
+  const NH  = 28;   // ارتفاع ثابت
+  const PAD = 14;   // هامش أفقي داخل العقدة (يمين + يسار)
+  const FONT_PX = 10.5;  // حجم الخط بالبكسل (تقريبي)
+  // عرض العقدة = طول الاسم × معامل الخط + هامش
+  function nodeWidth(name) {
+    // معامل تقريبي لخط Cairo العربي
+    return Math.max(52, Math.ceil((name||'').length * FONT_PX * 0.72) + PAD * 2);
+  }
 
   function _buildMap(m) { _map={}; m.forEach(x=>(_map[x.id]=x)); }
 
@@ -124,10 +130,15 @@ const Tree = (() => {
       .attr('data-child',  d=>d.target.data.id)
       .attr('stroke-width', d=>Math.max(1, 3.5 - d.source.depth*0.5))
       .attr('d', d=>{
-        // أغصان أفقية منحنية
-        const x1=d.source.x+NW/2, y1=d.source.y;
-        const x2=d.target.x-NW/2, y2=d.target.y;
-        const mx=(x1+x2)/2;
+        // نقطة البداية: يمين عقدة الأب (حسب عرضها)
+        const srcW = nodeWidth(d.source.data.name);
+        const tgtW = nodeWidth(d.target.data.name);
+        const x1 = d.source.x + srcW/2;
+        const y1 = d.source.y;
+        // نقطة النهاية: يسار عقدة الابن
+        const x2 = d.target.x - tgtW/2;
+        const y2 = d.target.y;
+        const mx = (x1+x2)/2;
         return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
       });
 
@@ -138,35 +149,41 @@ const Tree = (() => {
       .enter().append('g')
       .attr('class','ng')
       .attr('data-id', d=>d.data.id)
-      .attr('transform', d=>`translate(${d.x-NW/2},${d.y-NH/2})`);
+      // المركز الرأسي ثابت، الأفقي يعتمد على عرض العقدة
+      .attr('transform', d=>{
+        const nw = nodeWidth(d.data.name);
+        return `translate(${d.x - nw/2},${d.y - NH/2})`;
+      });
 
-    // البيضاوية
+    // البيضاوية — عرضها يتكيف مع الاسم
     ng.append('rect').attr('class','no')
-      .attr('width',NW).attr('height',NH)
-      .attr('rx',NH/2).attr('ry',NH/2)
+      .attr('width',  d => nodeWidth(d.data.name))
+      .attr('height', NH)
+      .attr('rx', NH/2).attr('ry', NH/2)
       .attr('fill','url(#wg)')
       .style('filter','url(#sh)');
 
-    // الاسم — يُختصر إذا طال
+    // الاسم كامل في المنتصف
     ng.append('text').attr('class','nl')
-      .attr('x',NW/2).attr('y',NH/2).attr('dy','.35em')
-      .text(d=>{
-        const n=d.data.name||'';
-        // الأسماء الطويلة تُختصر
-        if (n.length<=6) return n;
-        const parts=n.split(' ');
-        if (parts.length>1) return parts[0]; // اسم أول فقط إذا مركّب
-        return n.slice(0,6)+'…';
-      });
+      .attr('x', d => nodeWidth(d.data.name) / 2)
+      .attr('y', NH / 2)
+      .attr('dy', '.35em')
+      .text(d => d.data.name || '');
 
     // منطقة نقر
     ng.append('rect').attr('class','nh')
-      .attr('width',NW+10).attr('height',NH+10)
-      .attr('x',-5).attr('y',-5)
-      .attr('rx',NH/2+5).attr('ry',NH/2+5)
-      .on('click',    function(e,d){ e.stopPropagation(); UI.onNodeClick(d.data.id,e.clientX,e.clientY); })
-      .on('touchend', function(e,d){ e.preventDefault(); e.stopPropagation();
-        const t=e.changedTouches[0]; UI.onNodeClick(d.data.id,t.clientX,t.clientY); });
+      .attr('width',  d => nodeWidth(d.data.name) + 10)
+      .attr('height', NH + 10)
+      .attr('x', -5).attr('y', -5)
+      .attr('rx', NH/2 + 5).attr('ry', NH/2 + 5)
+      .on('mousedown',  function(e,d){ e.stopPropagation(); _startPress(d.data.id,e.clientX,e.clientY); })
+      .on('mouseup',    function(e,d){ e.stopPropagation(); _endPress(d.data.id,e.clientX,e.clientY,false); })
+      .on('mouseleave', function()   { _cancelPress(); })
+      .on('touchstart', function(e,d){ e.stopPropagation();
+        const t=e.touches[0]; _startPress(d.data.id,t.clientX,t.clientY); },{passive:true})
+      .on('touchend',   function(e,d){ e.preventDefault(); e.stopPropagation();
+        const t=e.changedTouches[0]; _endPress(d.data.id,t.clientX,t.clientY,true); })
+      .on('touchmove',  function(e,d){ _cancelPress(); },{passive:true});
 
     // ── ملء الشاشة تلقائياً ──
     _autoFit(W,H,root);
@@ -175,7 +192,72 @@ const Tree = (() => {
     _zoom=d3.zoom().scaleExtent([0.04,6])
       .on('zoom',e=>_g.attr('transform',e.transform));
     _svg.call(_zoom).on('dblclick.zoom',null);
+
+    // نقر على الفراغ → إخفاء مسار الأصل
+    _svg.on('click', () => clearLineage());
     if (_initT) _svg.call(_zoom.transform,_initT);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  منطق النقر والضغط المطوّل
+  //  - نقرة سريعة  → إظهار مسار الأصل
+  //  - ضغط مطوّل (700ms) → القائمة
+  //  - نقر على فراغ → إخفاء المسار
+  // ══════════════════════════════════════════════════════════
+  let _pressTimer  = null;
+  let _pressId     = null;
+  let _pressMoved  = false;
+
+  function _startPress(id, x, y) {
+    _pressId    = id;
+    _pressMoved = false;
+    clearTimeout(_pressTimer);
+    _pressTimer = setTimeout(() => {
+      // ضغط مطوّل → القائمة
+      if (!_pressMoved) {
+        if (navigator.vibrate) navigator.vibrate(45);
+        UI.showMenu(id, x, y);
+      }
+      _pressId = null;
+    }, 700);
+  }
+
+  function _endPress(id, x, y, isTouch) {
+    const wasLong = !_pressId;  // إذا انتهت المهلة → كان مطوّلاً
+    clearTimeout(_pressTimer);
+    if (_pressMoved || wasLong) { _pressId=null; return; }
+
+    // نقرة سريعة → مسار الأصل
+    _pressId = null;
+    _showLineageOnly(id);
+  }
+
+  function _cancelPress() {
+    clearTimeout(_pressTimer);
+    _pressMoved = true;
+    _pressId    = null;
+  }
+
+  function _showLineageOnly(id) {
+    // احسب السلالة
+    const ancs = new Set();
+    let cur = id;
+    while (cur) {
+      ancs.add(cur);
+      const m = _map[cur];
+      cur = m?.parent_id && _map[m.parent_id] ? m.parent_id : null;
+    }
+    // إزالة أي تمييز سابق
+    clearLineage();
+    // تمييز العقد
+    ancs.forEach(a =>
+      d3.select(`g.ng[data-id="${a}"]`).classed('hl-lin', true)
+    );
+    // تمييز الأغصان
+    d3.selectAll('path.br').each(function(d) {
+      if (ancs.has(d?.source?.data?.id) && ancs.has(d?.target?.data?.id))
+        d3.select(this).classed('hl-lin', true);
+    });
   }
 
   function _autoFit(W,H,root) {
@@ -603,7 +685,10 @@ const UI = (() => {
     $('btnCenter').onclick=()=>Tree.centreOnRoot();
   }
 
-  return { init,onNodeClick,toast,approveChild,rejectChild,approveUpdate,rejectUpdate };
+  // دالة عامة يستدعيها tree.js عند الضغط المطوّل
+  function showMenu(id,x,y){ _hideMenu(); _showMenu(id,x,y); }
+
+  return { init, onNodeClick, showMenu, toast, approveChild, rejectChild, approveUpdate, rejectUpdate };
 })();
 
 /**
