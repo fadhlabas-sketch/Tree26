@@ -364,3 +364,23 @@ rect.nh {
   stroke: none;
   cursor: pointer;
 }
+
+/* ══ تمييز مسار الأصل (نقرة واحدة) ══ */
+.ng.hl-lin .no {
+  stroke: #cc3300 !important;
+  stroke-width: 2.8 !important;
+  filter: drop-shadow(0 0 8px rgba(204,51,0,.7)) !important;
+}
+path.br.hl-lin {
+  stroke: #cc3300 !important;
+  stroke-width: 4 !important;
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 5px rgba(204,51,0,.6));
+}
+
+/* ══ تمييز البحث ══ */
+.ng.highlighted .no {
+  stroke: #e8a818 !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 0 10px rgba(232,168,24,.9)) !important;
+}
