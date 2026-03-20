@@ -80,7 +80,11 @@ const Tree = (() => {
     const wrap=document.getElementById('treeWrap');
     wrap.innerHTML='';
     const W=wrap.clientWidth||window.innerWidth;
-    const H=wrap.clientHeight||(window.innerHeight-100);
+    const H=wrap.clientHeight||window.innerHeight;
+    // تأكد أن الـ SVG يملأ الحاوية
+    if(wrap.clientHeight===0){
+      wrap.style.height=(window.innerHeight-100)+'px';
+    }
 
     _svg=d3.select('#treeWrap').append('svg').attr('width',W).attr('height',H);
 
@@ -261,18 +265,22 @@ const Tree = (() => {
   }
 
   function _autoFit(W,H,root) {
+    // احسب الحدود الحقيقية مع الأخذ بعرض كل عقدة
     let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
     root.descendants().forEach(d=>{
       if(d.data.id==='__root__') return;
-      if(d.x<x0) x0=d.x; if(d.x>x1) x1=d.x;
-      if(d.y<y0) y0=d.y; if(d.y>y1) y1=d.y;
+      const nw=nodeWidth(d.data.name);
+      if(d.x - nw/2 < x0) x0=d.x - nw/2;
+      if(d.x + nw/2 > x1) x1=d.x + nw/2;
+      if(d.y - NH/2 < y0) y0=d.y - NH/2;
+      if(d.y + NH/2 > y1) y1=d.y + NH/2;
     });
-    const pad=30;
-    const tW=x1-x0+NW+pad*2;
-    const tH=y1-y0+NH+pad*2;
-    const sc=Math.min((W-8)/tW,(H-8)/tH,1.6);
-    const tx=W/2-((x0+x1)/2+NW/2)*sc;
-    const ty=H/2-((y0+y1)/2+NH/2)*sc;
+    const pad=24;
+    const tW=x1-x0+pad*2;
+    const tH=y1-y0+pad*2;
+    const sc=Math.min((W-8)/tW,(H-8)/tH,1.8);
+    const tx=W/2-((x0+x1)/2)*sc;
+    const ty=H/2-((y0+y1)/2)*sc;
     _initT=d3.zoomIdentity.translate(tx,ty).scale(sc);
     if(_svg&&_zoom) _svg.call(_zoom.transform,_initT);
   }
@@ -283,11 +291,13 @@ const Tree = (() => {
     if(!el) return;
     const W=document.getElementById('treeWrap').clientWidth;
     const H=document.getElementById('treeWrap').clientHeight;
-    const m=el.getScreenCTM(); if(!m) return;
+    const bb=el.getBoundingClientRect();
+    const cx=bb.left+bb.width/2;
+    const cy=bb.top+bb.height/2;
     const cur=d3.zoomTransform(_svg.node());
     _svg.transition().duration(500).call(_zoom.transform,
       d3.zoomIdentity
-        .translate(cur.x+W/2-(m.e+NW/2*m.a), cur.y+H/2-(m.f+NH/2*m.d))
+        .translate(cur.x+W/2-cx, cur.y+H/2-cy)
         .scale(cur.k)
     );
   }
@@ -714,16 +724,19 @@ const App = (() => {
   }
 
   async function load2() {
+    // انتظر حتى تكون الـ DOM جاهزة تماماً
+    await new Promise(r => requestAnimationFrame(r));
+
     const cached=load();
     if(cached&&cached.length){
       Tree.render(cached); _hide();
       _fetch().then(ok=>{ if(ok) UI.toast('🔄 تم تحديث البيانات'); });
     } else {
-      document.getElementById('loaderMsg').textContent='جاري التحميل…';
+      document.getElementById('loaderMsg').textContent='جاري التحميل من الشبكة…';
       const ok=await _fetch();
       if(!ok) {
-        document.getElementById('loaderMsg').textContent='⚠️ لا يوجد اتصال';
-        setTimeout(_hide,2500);
+        document.getElementById('loaderMsg').textContent='⚠️ تعذّر الاتصال — تحقق من رابط Apps Script';
+        setTimeout(_hide,3000);
       } else { _hide(); }
     }
   }
