@@ -108,14 +108,7 @@ const Tree = (() => {
     // ── حاوية رئيسية ──
     _g = _svg.append('g');
 
-    // طبقة شفافة تغطي كل الفراغ — تستقبل نقر الإخفاء
-    _g.append('rect')
-      .attr('class', 'bg-layer')
-      .attr('x', -50000).attr('y', -50000)
-      .attr('width', 100000).attr('height', 100000)
-      .attr('fill', 'transparent')
-      .on('click',    () => clearLineage())
-      .on('touchend', () => clearLineage());
+    // (مستمع الإخفاء موجود على document في نهاية render)
 
     const hierData=_toHierarchy();
     if (!hierData) return;
@@ -206,11 +199,21 @@ const Tree = (() => {
       .on('zoom',e=>_g.attr('transform',e.transform));
     _svg.call(_zoom).on('dblclick.zoom',null);
 
-    // نقر على SVG مباشرة (احتياطي)
-    _svg.on('click', function(e) {
-      if (e.target === _svg.node()) clearLineage();
-    });
     if (_initT) _svg.call(_zoom.transform,_initT);
+
+    // مستمع الإخفاء على document (يُسجَّل مرة واحدة)
+    document.removeEventListener('pointerup', _docClear);
+    document.addEventListener('pointerup', _docClear);
+  }
+
+  // إخفاء السلالة عند النقر خارج العقد
+  function _docClear(e) {
+    if (!e.target.closest('.nh') &&
+        !e.target.closest('#ctxMenu') &&
+        !e.target.closest('.modal-box') &&
+        !e.target.closest('.detail-panel')) {
+      clearLineage();
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -266,12 +269,12 @@ const Tree = (() => {
     clearLineage();
     // تمييز العقد
     ancs.forEach(a =>
-      d3.select(`g.ng[data-id="${a}"]`).classed('hl-lin', true)
+      d3.select(`g.ng[data-id="${a}"]`).classed('lin', true)
     );
     // تمييز الأغصان
     d3.selectAll('path.br').each(function(d) {
       if (ancs.has(d?.source?.data?.id) && ancs.has(d?.target?.data?.id))
-        d3.select(this).classed('hl-lin', true);
+        d3.select(this).classed('lin', true);
     });
   }
 
@@ -336,8 +339,8 @@ const Tree = (() => {
   }
 
   function clearLineage() {
-    d3.selectAll('.ng.ln').classed('ln',false);
-    d3.selectAll('.br.ln').classed('ln',false);
+    d3.selectAll('.ng.lin, .ng.ln, .ng.hl-lin').classed('lin',false).classed('ln',false).classed('lin',false);
+    d3.selectAll('.br.lin, .br.ln, .br.hl-lin').classed('lin',false).classed('ln',false).classed('lin',false);
   }
 
   function getMember(id) { return _map[id]; }
