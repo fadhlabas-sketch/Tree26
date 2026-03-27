@@ -417,7 +417,7 @@ const UI = (() => {
     const p=Tree.getMember(pid), ia=_auth;
     const lbl=ia?'✅ إضافة مباشرة':'إرسال الطلب';
     _openModal(`
-      <div class="modal-title">👶 إضافة ابن / ابنة</div>
+      <div class="modal-title">👶 إضافة ابن/ </div>
       ${ia?'<div class="admin-badge">🔑 وضع المدير — فوري</div>':''}
       <p class="p-info">إضافة إلى: <strong>${p?.name||pid}</strong></p>
       <div class="form-group">
