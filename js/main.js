@@ -2,7 +2,7 @@
  * config.js
  */
 const CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwQYsAdj82O_Z8nENl99VCFrKCupNvjVPyHZ3U1CigLuoYvhcOdVM01hq9bECo30Nk/exec/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxTxktCBWMcUt6vy6dHT6wnLyYHkqbn8fPFNerE3tFnnatZPSF9TOxJCiVVJZS6jr8/exec',
   ADMIN_PASSWORD: 'admin123',
 };
 
