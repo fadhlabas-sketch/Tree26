@@ -2,7 +2,7 @@
  * config.js
  */
 const CONFIG = {
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzZHg589-B2f2c1h7xToXDufDw9TCFuIJJWJwPmeUEpsSjJgTad0HZAbdDcrH-Wmw/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbx4XESg-LNbQFtWvyXxsK__11tpdiqpdIDP9gkqiHs_6TpGcw9c8xt7DTlvL2C6cmM/exec',
   ADMIN_PASSWORD: 'admin123',
 };
 
@@ -38,6 +38,7 @@ const Sheets = (() => {
       _call({action:'addPendingRequest',type:'add_child',parentId,childName,birthDate:birthYear||'',submittedBy:submittedBy||'مجهول'}),
     submitUpdateDetails: ({memberId,memberName,birthDate,phone,address,job,note,submittedBy}) =>
       _call({action:'addPendingUpdate',memberId,memberName,birthDate:birthDate||'',phone:phone||'',address:address||'',job:job||'',note:note||'',submittedBy:submittedBy||'مجهول'}),
+    deleteMember: (memberId) => _call({ action: 'deleteMember', memberId }),
   };
 })();
 
@@ -206,14 +207,30 @@ const Tree = (() => {
     document.addEventListener('pointerup', _docClear);
   }
 
-  // إخفاء السلالة عند النقر خارج العقد
-  function _docClear(e) {
-    if (!e.target.closest('.nh') &&
-        !e.target.closest('#ctxMenu') &&
-        !e.target.closest('.modal-box') &&
-        !e.target.closest('.detail-panel')) {
-      clearLineage();
+  // ── متغيرات تتبع الحركة ──
+  let _ptrDownX = 0, _ptrDownY = 0, _ptrMoved = false;
+
+  document.addEventListener('pointerdown', e => {
+    _ptrDownX = e.clientX;
+    _ptrDownY = e.clientY;
+    _ptrMoved = false;
+  }, { passive: true });
+
+  document.addEventListener('pointermove', e => {
+    if (Math.abs(e.clientX - _ptrDownX) > 6 ||
+        Math.abs(e.clientY - _ptrDownY) > 6) {
+      _ptrMoved = true;
     }
+  }, { passive: true });
+
+  // إخفاء السلالة فقط عند نقر حقيقي (بدون حركة) على فراغ
+  function _docClear(e) {
+    if (_ptrMoved) return;   // كان سحباً أو زوماً → تجاهل
+    if (e.target.closest('.nh')) return;          // عقدة
+    if (e.target.closest('#ctxMenu')) return;      // القائمة
+    if (e.target.closest('.modal-box')) return;    // نافذة
+    if (e.target.closest('.detail-panel')) return; // لوحة التفاصيل
+    clearLineage();
   }
 
   // ══════════════════════════════════════════════════════════
@@ -368,7 +385,12 @@ const UI = (() => {
     _cur=id;
     const m=$('ctxMenu');
     const vw=window.innerWidth, vh=window.innerHeight;
-    const mw=200, mh=220;
+    const mw=210, mh=_auth?260:220;
+
+    // إظهار/إخفاء زر المسح حسب حالة الأدمن
+    const delBtn = $('ctxDelete');
+    if (delBtn) delBtn.style.display = _auth ? '' : 'none';
+
     m.style.left=Math.max(4,Math.min(x-mw/2,vw-mw-4))+'px';
     m.style.top =Math.min(y+10,vh-mh-4)+'px';
     m.classList.add('on');
@@ -417,7 +439,7 @@ const UI = (() => {
     const p=Tree.getMember(pid), ia=_auth;
     const lbl=ia?'✅ إضافة مباشرة':'إرسال الطلب';
     _openModal(`
-      <div class="modal-title">👶 إضافة ابن/ </div>
+      <div class="modal-title">👶 إضافة ابن / ابنة</div>
       ${ia?'<div class="admin-badge">🔑 وضع المدير — فوري</div>':''}
       <p class="p-info">إضافة إلى: <strong>${p?.name||pid}</strong></p>
       <div class="form-group">
@@ -519,6 +541,36 @@ const UI = (() => {
       <button class="btn-outline" id="clrL">✕ إخفاء التمييز</button>
     `);
     $('clrL').onclick=()=>{ Tree.clearLineage(); _closeModal(); };
+  }
+
+  // ── حذف عضو (أدمن فقط) ──
+  function _formDelete(id) {
+    const m = Tree.getMember(id);
+    if (!m) return;
+    _openModal(`
+      <div class="modal-title">🗑️ حذف عضو</div>
+      <p class="p-info" style="margin-bottom:18px">
+        هل أنت متأكد من حذف:<br/>
+        <strong style="color:var(--brown);font-size:1rem">${m.name}</strong>؟<br/>
+        <span style="color:var(--danger);font-size:.8rem">⚠️ لا يمكن التراجع عن هذا الإجراء</span>
+      </p>
+      <button class="btn-gold" id="dconf" style="background:var(--danger)">✓ تأكيد الحذف</button>
+      <button class="btn-outline" id="dcanc" style="margin-top:8px">إلغاء</button>
+    `);
+    $('dcanc').onclick = _closeModal;
+    $('dconf').onclick = async () => {
+      const btn = $('dconf');
+      btn.textContent = 'جاري الحذف…'; btn.disabled = true;
+      try {
+        await Sheets.deleteMember(id);
+        toast('✅ تم حذف العضو');
+        _closeModal();
+        App.reload();
+      } catch(e) {
+        toast('❌ ' + e.message);
+        btn.textContent = 'تأكيد الحذف'; btn.disabled = false;
+      }
+    };
   }
 
   // ── الإحصائيات ──
@@ -682,6 +734,8 @@ const UI = (() => {
     $('ctxChild').onclick   =()=>{ const id=_cur;_hideMenu(); if(id) _formChild(id); };
     $('ctxEdit').onclick    =()=>{ const id=_cur;_hideMenu(); if(id) _formEdit(id); };
     $('ctxLineage').onclick =()=>{ const id=_cur;_hideMenu(); if(id) _formLineage(id); };
+    if ($('ctxDelete'))
+      $('ctxDelete').onclick=()=>{ const id=_cur;_hideMenu(); if(id) _formDelete(id); };
     document.addEventListener('click',   e=>{ if(!e.target.closest('#ctxMenu')&&!e.target.closest('.nh')) _hideMenu(); });
     document.addEventListener('touchstart',e=>{ if(!e.target.closest('#ctxMenu')&&!e.target.closest('.nh')) _hideMenu(); },{passive:true});
     $('btnAdmin').onclick    =_openAdmin;
